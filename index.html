@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
+  <title>PIPs Portal</title>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header" id="site-header">
+      <div class="site-header__content">
+        <div class="brand">
+          <div class="brand-logo hidden" id="brand-logo">
+            <img id="portal-logo" class="portal-logo hidden" alt="Portal logo" />
+          </div>
+          <div class="brand-copy">
+            <h1 id="portal-title">PIPs Portal</h1>
+            <p id="portal-tagline" class="intro">Sign in with your parent account to unlock your portal.</p>
+            <div class="header-meta">
+              <p id="status" class="status">Loading configuration…</p>
+              <section id="account-section" class="account hidden" aria-live="polite">
+                <p id="account-name" class="account-line"></p>
+                <p id="account-email" class="account-line"></p>
+                <p id="account-role" class="account-line"></p>
+              </section>
+            </div>
+          </div>
+        </div>
+        <div class="session-controls">
+          <button id="login-btn" class="pill-button" disabled>Sign in</button>
+          <button id="logout-btn" class="pill-button hidden">Sign out</button>
+        </div>
+      </div>
+    </header>
+    <main class="portal-panel">
+      <header class="portal-header">
+        <h2 id="portal-heading">Explore the portal</h2>
+        <p id="portal-description">Links below adjust automatically once you sign in.</p>
+      </header>
+      <div id="links-container" class="links-grid" role="list"></div>
+      <p id="links-empty" class="empty-state hidden">No resources configured for this role yet.</p>
+      <footer class="portal-footer">
+        <a href="admin.html" class="admin-link">Portal administration</a>
+      </footer>
+    </main>
+  </div>
+  <script src="https://alcdn.msauth.net/browser/2.38.0/js/msal-browser.min.js" integrity="sha384-mz+8Q3jA4XBFbnyAsyQegn/0LHvziH7qHLBa9GzcU3HzeWj9J16SXM5S+TsmPBy0" crossorigin="anonymous"></script>
+  <script src="main.js"></script>
+</body>
+</html>

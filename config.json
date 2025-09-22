@@ -1,0 +1,80 @@
+{
+  "azure": {
+    "clientId": "fab20c6a-ba3b-416c-9058-3c9cdf8303e9",
+    "authority": "https://id.k12college.parentidpassport.com/pipsk12college.onmicrosoft.com/B2C_1A_PIPS_PORTAL_SIGNIN_PROD",
+    "knownAuthorities": ["id.k12college.parentidpassport.com"],
+    "redirectUri": "https://b2cpipscustompages.blob.core.windows.net/portal/index.html",
+    "postLogoutRedirectUri": "https://b2cpipscustompages.blob.core.windows.net/portal/index.html",
+    "scopes": ["openid", "offline_access"]
+  },
+  "admin": {
+    "username": "portal-admin",
+    "passwordHash": "a677b4f6b31234a53a763422edd36f47e4517f188eb2cd3c0eb7c108da5faf20"
+  },
+  "portal": {
+    "branding": {
+      "title": "PIPS Unified Portal",
+      "tagline": "Sign in with your ParentIDPassport credentials to unlock experiences tailored to your role.",
+      "logo": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/shield-star.svg",
+      "backgroundImage": "https://images.unsplash.com/photo-1509223197845-458d87318791?auto=format&fit=crop&w=1400&q=80"
+    },
+    "roles": {
+      "anonymous": [
+        {
+          "title": "District Announcements",
+          "url": "https://www.example.com/announcements",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/volume.svg",
+          "target": "_blank"
+        },
+        {
+          "title": "Contact Us",
+          "url": "https://www.example.com/contact",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/phone.svg",
+          "target": "_self"
+        }
+      ],
+      "parents": [
+        {
+          "title": "Grades & Attendance",
+          "url": "https://www.example.com/grades",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/report-analytics.svg",
+          "target": "_blank"
+        },
+        {
+          "title": "Meal Payments",
+          "url": "https://www.example.com/meals",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/credit-card.svg",
+          "target": "_blank"
+        }
+      ],
+      "students": [
+        {
+          "title": "Class Schedule",
+          "url": "https://www.example.com/schedule",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/calendar.svg",
+          "target": "_self"
+        },
+        {
+          "title": "Library Resources",
+          "url": "https://www.example.com/library",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/book.svg",
+          "target": "_blank"
+        }
+      ],
+      "staff": [
+        {
+          "title": "HR Portal",
+          "url": "https://www.example.com/hr",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/id.svg",
+          "target": "_blank"
+        },
+        {
+          "title": "IT Help Desk",
+          "url": "https://www.example.com/helpdesk",
+          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/tools.svg",
+          "target": "_self"
+        }
+      ]
+    }
+  }
+}

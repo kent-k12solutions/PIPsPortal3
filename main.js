@@ -1,0 +1,410 @@
+const siteHeaderElement = document.getElementById('site-header');
+const brandLogoWrapper = document.getElementById('brand-logo');
+const portalLogoElement = document.getElementById('portal-logo');
+const portalTitleElement = document.getElementById('portal-title');
+const portalTaglineElement = document.getElementById('portal-tagline');
+const statusElement = document.getElementById('status');
+const loginButton = document.getElementById('login-btn');
+const accountNameElement = document.getElementById('account-name');
+const accountEmailElement = document.getElementById('account-email');
+const accountRoleElement = document.getElementById('account-role');
+const accountSection = document.getElementById('account-section');
+const logoutButton = document.getElementById('logout-btn');
+const portalHeadingElement = document.getElementById('portal-heading');
+const portalDescriptionElement = document.getElementById('portal-description');
+const linksContainer = document.getElementById('links-container');
+const emptyStateElement = document.getElementById('links-empty');
+
+const initialPortalTitle = portalTitleElement ? portalTitleElement.textContent : 'PIPS Unified Portal';
+const initialPortalTagline = portalTaglineElement
+  ? portalTaglineElement.textContent
+  : 'Sign in with your ParentIDPassport credentials to unlock experiences tailored to your role.';
+
+const PORTAL_LINKS_STORAGE_KEY = 'portalLinksConfig';
+const ROLE_LABELS = {
+  anonymous: 'Guests',
+  parents: 'Parents & Guardians',
+  students: 'Students',
+  staff: 'Staff'
+};
+const ROLE_SYNONYMS = {
+  anonymous: ['anonymous', 'guest', 'public'],
+  parents: ['parent', 'parents', 'guardian', 'guardians', 'family'],
+  students: ['student', 'students', 'learner', 'learners'],
+  staff: ['staff', 'teacher', 'teachers', 'faculty', 'employee', 'employees']
+};
+
+let msalInstance;
+let loginRequest = {};
+let defaultPortalConfig = { branding: {}, roles: {} };
+
+function setStatus(message) {
+  if (statusElement) {
+    statusElement.textContent = message;
+  }
+}
+
+function getRolesFromClaims(claims) {
+  if (!claims) {
+    return [];
+  }
+
+  const claimKeys = Object.keys(claims);
+  const candidateKeys = ['roles', 'role', 'extension_roles', 'extension_role'];
+
+  for (const candidate of candidateKeys) {
+    const match = claimKeys.find((key) => key.toLowerCase() === candidate);
+    if (!match) {
+      continue;
+    }
+
+    const value = claims[match];
+    if (Array.isArray(value)) {
+      return value.map((item) => String(item));
+    }
+
+    if (typeof value === 'string' && value) {
+      return value.split(',').map((item) => item.trim()).filter(Boolean);
+
+    }
+  }
+
+  return [];
+}
+
+function formatRoles(claims) {
+  const roles = getRolesFromClaims(claims);
+  return roles.length > 0 ? roles.join(', ') : '';
+}
+
+function normalizeRoleValue(value) {
+  return value.trim().toLowerCase();
+}
+
+function findPortalRoleMatch(claims) {
+  const roles = getRolesFromClaims(claims).map((role) => normalizeRoleValue(role));
+  if (roles.length === 0) {
+    return null;
+  }
+
+  for (const [portalRole, synonyms] of Object.entries(ROLE_SYNONYMS)) {
+    if (roles.some((role) => synonyms.includes(role))) {
+      return portalRole;
+    }
+  }
+
+  return null;
+}
+
+function determinePortalRole(account) {
+  if (!account) {
+    return 'anonymous';
+  }
+
+  const claims = account.idTokenClaims || {};
+  const directMatch = findPortalRoleMatch(claims);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  // Default to anonymous when we cannot confidently map the claim.
+  return 'anonymous';
+}
+
+function getStoredPortalConfig() {
+  try {
+    const raw = localStorage.getItem(PORTAL_LINKS_STORAGE_KEY);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+
+    const branding = parsed.branding && typeof parsed.branding === 'object' ? parsed.branding : {};
+    const roles = parsed.roles && typeof parsed.roles === 'object' ? parsed.roles : {};
+
+    return { branding, roles };
+  } catch (error) {
+    console.warn('Unable to read portal links from local storage.', error);
+    return null;
+  }
+}
+
+function getPortalLinksForRole(roleKey) {
+  const stored = getStoredPortalConfig();
+  if (stored && Array.isArray(stored.roles?.[roleKey])) {
+    return stored.roles[roleKey];
+  }
+
+  if (defaultPortalConfig.roles && Array.isArray(defaultPortalConfig.roles[roleKey])) {
+    return defaultPortalConfig.roles[roleKey];
+  }
+
+  return [];
+}
+
+function getPortalBranding() {
+  const stored = getStoredPortalConfig();
+  if (stored && stored.branding) {
+    return stored.branding;
+  }
+
+  return defaultPortalConfig.branding || {};
+}
+
+function applyBranding() {
+  const branding = getPortalBranding();
+
+  if (portalTitleElement) {
+    portalTitleElement.textContent = branding.title || initialPortalTitle;
+  }
+
+  if (portalTaglineElement) {
+    portalTaglineElement.textContent = branding.tagline || initialPortalTagline;
+  }
+
+  if (portalLogoElement) {
+    if (branding.logo) {
+      portalLogoElement.src = branding.logo;
+      portalLogoElement.classList.remove('hidden');
+      brandLogoWrapper?.classList.remove('hidden');
+    } else {
+      portalLogoElement.removeAttribute('src');
+      portalLogoElement.classList.add('hidden');
+      brandLogoWrapper?.classList.add('hidden');
+    }
+  }
+
+  if (siteHeaderElement) {
+    if (branding.backgroundImage) {
+      siteHeaderElement.style.setProperty('--header-background-image', `url(${branding.backgroundImage})`);
+    } else {
+      siteHeaderElement.style.removeProperty('--header-background-image');
+    }
+  }
+}
+
+function renderPortal(roleKey) {
+  if (!linksContainer || !portalHeadingElement || !portalDescriptionElement || !emptyStateElement) {
+    return;
+  }
+
+  const label = ROLE_LABELS[roleKey] || 'your role';
+  portalHeadingElement.textContent = `Resources for ${label}`;
+  portalDescriptionElement.textContent =
+    roleKey === 'anonymous'
+      ? 'Sign in to access additional personalized tools and experiences.'
+      : 'Choose a tile below to launch the resources curated for your role.';
+
+  linksContainer.innerHTML = '';
+  const links = getPortalLinksForRole(roleKey);
+
+  if (links.length === 0) {
+    emptyStateElement.classList.remove('hidden');
+    return;
+  }
+
+  emptyStateElement.classList.add('hidden');
+
+  links.forEach((link) => {
+    if (!link || !link.title || !link.url) {
+      return;
+    }
+
+    const card = document.createElement('a');
+    card.className = 'link-card';
+    card.href = link.url;
+    card.target = link.target === '_self' ? '_self' : '_blank';
+    card.rel = card.target === '_blank' ? 'noopener noreferrer' : '';
+    card.role = 'listitem';
+
+    if (link.icon) {
+      const icon = document.createElement('img');
+      icon.src = link.icon;
+      icon.alt = `${link.title} icon`;
+      icon.loading = 'lazy';
+      card.appendChild(icon);
+    }
+
+    const title = document.createElement('h3');
+    title.textContent = link.title;
+    card.appendChild(title);
+
+    const meta = document.createElement('span');
+    meta.textContent = link.target === '_self' ? '' : '';
+    //meta.textContent = link.target === '_self' ? 'Opens in this window' : 'Opens in new window';
+    card.appendChild(meta);
+
+    linksContainer.appendChild(card);
+  });
+}
+
+
+function showAccountInfo(account) {
+  if (account) {
+    const claims = account.idTokenClaims || {};
+    const displayName = account.name || claims.name || account.username || 'Signed in';
+    const emailClaim = Array.isArray(claims.emails)
+      ? claims.emails[0]
+      : claims.email || account.username || '';
+    const rolesDisplay = formatRoles(claims);
+
+    accountNameElement.textContent = `Name: ${displayName}`;
+    accountEmailElement.textContent = emailClaim ? `Email: ${emailClaim}` : 'Email: Not available';
+    accountRoleElement.textContent = rolesDisplay ? `Role: ${rolesDisplay}` : 'Role: Not assigned';
+
+    accountSection?.classList.remove('hidden');
+    loginButton?.classList.add('hidden');
+    logoutButton?.classList.remove('hidden');
+    logoutButton.disabled = false;
+  } else {
+    accountNameElement.textContent = '';
+    accountEmailElement.textContent = '';
+    accountRoleElement.textContent = '';
+
+    accountSection?.classList.add('hidden');
+    loginButton?.classList.remove('hidden');
+    logoutButton?.classList.add('hidden');
+    logoutButton.disabled = false;
+  }
+
+  const roleKey = determinePortalRole(account);
+  renderPortal(roleKey);
+}
+
+function getFriendlyErrorMessage(error) {
+  if (!error) {
+    return 'Unable to complete sign-in. Check the console for details.';
+  }
+
+  const message = error.errorMessage || error.message || '';
+  if (message.includes('AADB2C90079')) {
+    return (
+      'The B2C application is configured as a confidential client and requires a client secret. ' +
+      'Single-page applications cannot supply secrets directly. Update the app registration to be a SPA/public client, ' +
+      'or move the token redemption to a confidential back-end.'
+    );
+  }
+
+  if (message.includes('AADB2C90068')) {
+    return (
+      'The application ID configured for this policy is not recognized by Azure AD B2C. ' +
+      'Confirm that the user flow or custom policy references an app registration created in the B2C portal, ' +
+      "and update config.json to use that application's client ID."
+    );
+  }
+
+  return 'Unable to complete sign-in. Check the console for details.';
+}
+
+function initializeMsal(config) {
+  loginRequest = { scopes: config.scopes || [] };
+
+  msalInstance = new msal.PublicClientApplication({
+    auth: {
+      clientId: config.clientId,
+      authority: config.authority,
+      knownAuthorities: config.knownAuthorities,
+      redirectUri: config.redirectUri,
+      postLogoutRedirectUri: config.postLogoutRedirectUri || config.redirectUri
+    },
+    cache: {
+      cacheLocation: 'localStorage',
+      storeAuthStateInCookie: false
+    }
+  });
+
+  msalInstance
+    .handleRedirectPromise()
+    .then((response) => {
+      if (response && response.account) {
+        msalInstance.setActiveAccount(response.account);
+      }
+
+      const account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
+      if (account) {
+        msalInstance.setActiveAccount(account);
+        setStatus('Signed in successfully.');
+      } else {
+        setStatus('You are not signed in.');
+      }
+
+      showAccountInfo(account);
+      loginButton.disabled = false;
+    })
+    .catch((error) => {
+      console.error('Authentication error', error);
+      setStatus(getFriendlyErrorMessage(error));
+      loginButton.disabled = false;
+      showAccountInfo(null);
+    });
+}
+
+if (loginButton) {
+  loginButton.addEventListener('click', () => {
+    if (!msalInstance) {
+      console.error('MSAL is not initialized yet.');
+      return;
+    }
+
+    setStatus('Redirecting to sign-in…');
+    msalInstance.loginRedirect(loginRequest);
+  });
+}
+
+if (logoutButton) {
+  logoutButton.addEventListener('click', () => {
+    if (!msalInstance) {
+      console.error('MSAL is not initialized yet.');
+      return;
+    }
+
+    setStatus('Signing out…');
+    logoutButton.disabled = true;
+
+    msalInstance
+      .logoutRedirect()
+      .catch((error) => {
+        console.error('Logout error', error);
+        setStatus('Unable to sign out. Check the console for details.');
+        logoutButton.disabled = false;
+      });
+  });
+}
+
+fetch('config.json')
+  .then((response) => {
+    if (!response.ok) {
+      throw new Error(`Failed to load config.json: ${response.status} ${response.statusText}`);
+    }
+    return response.json();
+  })
+  .then((config) => {
+    if (!config.azure) {
+      throw new Error('Missing Azure B2C configuration.');
+    }
+
+    defaultPortalConfig = {
+      branding: (config.portal && config.portal.branding) || {},
+      roles: (config.portal && config.portal.roles) || {}
+    };
+    applyBranding();
+    renderPortal('anonymous');
+    initializeMsal(config.azure);
+  })
+  .catch((error) => {
+    console.error(error);
+    setStatus('Unable to load configuration.');
+    renderPortal('anonymous');
+  });
+
+window.addEventListener('storage', (event) => {
+  if (event.key === PORTAL_LINKS_STORAGE_KEY) {
+    const account = msalInstance ? msalInstance.getActiveAccount() : null;
+    showAccountInfo(account || null);
+    applyBranding();
+  }
+});
