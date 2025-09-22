@@ -14,6 +14,9 @@ const portalHeadingElement = document.getElementById('portal-heading');
 const portalDescriptionElement = document.getElementById('portal-description');
 const linksContainer = document.getElementById('links-container');
 const emptyStateElement = document.getElementById('links-empty');
+const portalCustomFooter = document.getElementById('portal-custom-footer');
+const privacyPolicyLinkElement = document.getElementById('privacy-policy-link');
+const portalCopyrightElement = document.getElementById('portal-copyright');
 
 const initialPortalTitle = portalTitleElement ? portalTitleElement.textContent : 'PIPS Unified Portal';
 const initialPortalTagline = portalTaglineElement
@@ -34,9 +37,131 @@ const ROLE_SYNONYMS = {
   staff: ['staff', 'teacher', 'teachers', 'faculty', 'employee', 'employees']
 };
 
+const COLOR_VARIABLE_MAP = {
+  background: '--color-background',
+  surface: '--color-surface',
+  surfaceSubtle: '--color-surface-subtle',
+  primary: '--color-primary',
+  primaryDark: '--color-primary-dark',
+  primaryAccent: '--color-primary-accent',
+  text: '--color-text',
+  muted: '--color-muted',
+  border: '--color-border',
+  headerOverlay: '--color-header-overlay',
+  sessionButtonBackground: '--color-session-button-background',
+  emptyStateBackground: '--color-empty-state-background',
+  tertiaryButtonBackground: '--color-tertiary-background',
+  danger: '--color-danger',
+  footerBackground: '--color-footer-background',
+  footerText: '--color-footer-text',
+  footerLink: '--color-footer-link'
+};
+
 let msalInstance;
 let loginRequest = {};
 let defaultPortalConfig = { branding: {}, roles: {} };
+
+function resolveColorToRgbComponents(value) {
+  if (!value || !document || !document.body) {
+    return null;
+  }
+
+  const probe = document.createElement('span');
+  probe.style.color = value;
+  probe.style.display = 'none';
+  document.body.appendChild(probe);
+  const computedColor = window.getComputedStyle(probe).color;
+  probe.remove();
+
+  const match = computedColor.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.length < 3) {
+    return null;
+  }
+
+  return parts.slice(0, 3).join(', ');
+}
+
+function applyColorVariables(colors = {}) {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
+    const value = colors[key];
+    if (value) {
+      root.style.setProperty(variable, value);
+    } else {
+      root.style.removeProperty(variable);
+    }
+  });
+
+  const primarySource = colors.primary || window.getComputedStyle(root).getPropertyValue('--color-primary');
+  const primaryRgb = resolveColorToRgbComponents(primarySource.trim());
+  if (primaryRgb) {
+    root.style.setProperty('--color-primary-rgb', primaryRgb);
+  }
+
+  const textSource = colors.text || window.getComputedStyle(root).getPropertyValue('--color-text');
+  const textRgb = resolveColorToRgbComponents(textSource.trim());
+  if (textRgb) {
+    root.style.setProperty('--color-text-rgb', textRgb);
+  }
+
+  const mutedSource = colors.muted || window.getComputedStyle(root).getPropertyValue('--color-muted');
+  const mutedRgb = resolveColorToRgbComponents(mutedSource.trim());
+  if (mutedRgb) {
+    root.style.setProperty('--color-muted-rgb', mutedRgb);
+  }
+}
+
+function applyFooterSettings(footerConfig = {}) {
+  if (portalCustomFooter) {
+    const rawHtml = typeof footerConfig.customHtml === 'string' ? footerConfig.customHtml : '';
+    if (rawHtml.trim()) {
+      portalCustomFooter.innerHTML = rawHtml;
+      portalCustomFooter.classList.remove('hidden');
+    } else {
+      portalCustomFooter.innerHTML = '';
+      portalCustomFooter.classList.add('hidden');
+    }
+  }
+
+  if (privacyPolicyLinkElement) {
+    const label = typeof footerConfig.privacyPolicyLabel === 'string' ? footerConfig.privacyPolicyLabel.trim() : '';
+    const url = typeof footerConfig.privacyPolicyUrl === 'string' ? footerConfig.privacyPolicyUrl.trim() : '';
+
+    const linkText = label || 'Privacy policy';
+    privacyPolicyLinkElement.textContent = linkText;
+
+    if (url) {
+      privacyPolicyLinkElement.href = url;
+      privacyPolicyLinkElement.classList.remove('hidden');
+      privacyPolicyLinkElement.setAttribute('target', '_blank');
+      privacyPolicyLinkElement.setAttribute('rel', 'noopener noreferrer');
+    } else {
+      privacyPolicyLinkElement.href = '#';
+      privacyPolicyLinkElement.classList.add('hidden');
+      privacyPolicyLinkElement.removeAttribute('target');
+      privacyPolicyLinkElement.removeAttribute('rel');
+    }
+  }
+}
+
+function updateCopyright(title) {
+  if (!portalCopyrightElement) {
+    return;
+  }
+
+  const year = new Date().getFullYear();
+  const safeTitle = (title && title.trim()) || initialPortalTitle || 'PIPs Portal';
+  portalCopyrightElement.textContent = `© ${year} ${safeTitle}`;
+}
 
 function setStatus(message) {
   if (statusElement) {
@@ -148,22 +273,58 @@ function getPortalLinksForRole(roleKey) {
 
 function getPortalBranding() {
   const stored = getStoredPortalConfig();
-  if (stored && stored.branding) {
-    return stored.branding;
-  }
+  const defaultBranding = defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
+    ? defaultPortalConfig.branding
+    : {};
+  const storedBranding = stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
 
-  return defaultPortalConfig.branding || {};
+  const defaultColors = defaultBranding.colors && typeof defaultBranding.colors === 'object' ? defaultBranding.colors : {};
+  const storedColors = storedBranding.colors && typeof storedBranding.colors === 'object' ? storedBranding.colors : {};
+
+  const defaultFooter = defaultBranding.footer && typeof defaultBranding.footer === 'object' ? defaultBranding.footer : {};
+  const storedFooter = storedBranding.footer && typeof storedBranding.footer === 'object' ? storedBranding.footer : {};
+
+  return {
+    ...defaultBranding,
+    ...storedBranding,
+    colors: { ...defaultColors, ...storedColors },
+    footer: { ...defaultFooter, ...storedFooter }
+  };
 }
 
 function applyBranding() {
   const branding = getPortalBranding();
+  const stored = getStoredPortalConfig();
+  const storedBranding = stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
+
+  applyColorVariables(branding.colors || {});
 
   if (portalTitleElement) {
-    portalTitleElement.textContent = branding.title || initialPortalTitle;
+    const title = branding.title || initialPortalTitle;
+    portalTitleElement.textContent = title;
+    updateCopyright(title);
+  } else {
+    updateCopyright(branding.title || initialPortalTitle);
   }
 
   if (portalTaglineElement) {
-    portalTaglineElement.textContent = branding.tagline || initialPortalTagline;
+    const taglineOverrideExists = Object.prototype.hasOwnProperty.call(storedBranding, 'tagline');
+    const taglineSource = taglineOverrideExists ? storedBranding.tagline : branding.tagline;
+    const normalizedTagline = typeof taglineSource === 'string' ? taglineSource.trim() : '';
+
+    if (taglineOverrideExists && !normalizedTagline) {
+      portalTaglineElement.textContent = '';
+      portalTaglineElement.classList.add('hidden');
+    } else if (normalizedTagline) {
+      portalTaglineElement.textContent = normalizedTagline;
+      portalTaglineElement.classList.remove('hidden');
+    } else if (initialPortalTagline) {
+      portalTaglineElement.textContent = initialPortalTagline;
+      portalTaglineElement.classList.remove('hidden');
+    } else {
+      portalTaglineElement.textContent = '';
+      portalTaglineElement.classList.add('hidden');
+    }
   }
 
   if (portalLogoElement) {
@@ -185,6 +346,8 @@ function applyBranding() {
       siteHeaderElement.style.removeProperty('--header-background-image');
     }
   }
+
+  applyFooterSettings(branding.footer || {});
 }
 
 function renderPortal(roleKey) {
@@ -232,11 +395,6 @@ function renderPortal(roleKey) {
     const title = document.createElement('h3');
     title.textContent = link.title;
     card.appendChild(title);
-
-    const meta = document.createElement('span');
-    meta.textContent = link.target === '_self' ? '' : '';
-    //meta.textContent = link.target === '_self' ? 'Opens in this window' : 'Opens in new window';
-    card.appendChild(meta);
 
     linksContainer.appendChild(card);
   });

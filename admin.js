@@ -9,13 +9,32 @@ const ROLE_LABELS = {
   staff: 'Staff'
 };
 
+const COLOR_FIELDS = [
+  { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
+  { key: 'surface', label: 'Main surface colour', placeholder: '#ffffff' },
+  { key: 'surfaceSubtle', label: 'Subtle surface background', placeholder: 'rgba(247, 250, 255, 0.6)' },
+  { key: 'primary', label: 'Primary brand colour', placeholder: '#1d4ed8' },
+  { key: 'primaryDark', label: 'Primary dark colour', placeholder: '#1a3696' },
+  { key: 'primaryAccent', label: 'Primary accent colour', placeholder: '#2563eb' },
+  { key: 'text', label: 'Main text colour', placeholder: '#1f2937' },
+  { key: 'muted', label: 'Muted text colour', placeholder: '#6b7280' },
+  { key: 'border', label: 'Border colour', placeholder: '#e5e7eb' },
+  { key: 'headerOverlay', label: 'Header overlay colour', placeholder: 'rgba(255, 255, 255, 0.85)' },
+  { key: 'sessionButtonBackground', label: 'Session button background', placeholder: 'rgba(255, 255, 255, 0.85)' },
+  { key: 'emptyStateBackground', label: 'Empty state background', placeholder: 'rgba(107, 114, 128, 0.12)' },
+  { key: 'tertiaryButtonBackground', label: 'Secondary surface colour', placeholder: '#ffffff' },
+  { key: 'danger', label: 'Danger colour', placeholder: '#dc2626' },
+  { key: 'footerBackground', label: 'Footer background colour', placeholder: '#ffffff' },
+  { key: 'footerText', label: 'Footer text colour', placeholder: '#6b7280' },
+  { key: 'footerLink', label: 'Footer link colour', placeholder: '#1d4ed8' }
+];
+
 const loginSection = document.getElementById('admin-login');
 const loginForm = document.getElementById('admin-login-form');
 const loginStatus = document.getElementById('admin-login-status');
 const consoleSection = document.getElementById('admin-console');
 const consoleStatus = document.getElementById('admin-console-status');
 const logoutButton = document.getElementById('admin-logout');
-const restoreButton = document.getElementById('admin-restore-defaults');
 const brandingContainer = document.getElementById('branding-container');
 const rolesContainer = document.getElementById('roles-container');
 
@@ -113,9 +132,30 @@ function loadCurrentPortalConfig() {
     currentPortalConfig = { branding: {}, roles: {} };
   }
 
+  const defaultBranding = defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
+    ? defaultPortalConfig.branding
+    : {};
+
   if (!currentPortalConfig.branding || typeof currentPortalConfig.branding !== 'object') {
     currentPortalConfig.branding = {};
   }
+
+  currentPortalConfig.branding = {
+    ...defaultBranding,
+    ...currentPortalConfig.branding
+  };
+
+  const defaultColors = defaultBranding.colors && typeof defaultBranding.colors === 'object' ? defaultBranding.colors : {};
+  const currentColors = currentPortalConfig.branding.colors && typeof currentPortalConfig.branding.colors === 'object'
+    ? currentPortalConfig.branding.colors
+    : {};
+  currentPortalConfig.branding.colors = { ...defaultColors, ...currentColors };
+
+  const defaultFooter = defaultBranding.footer && typeof defaultBranding.footer === 'object' ? defaultBranding.footer : {};
+  const currentFooter = currentPortalConfig.branding.footer && typeof currentPortalConfig.branding.footer === 'object'
+    ? currentPortalConfig.branding.footer
+    : {};
+  currentPortalConfig.branding.footer = { ...defaultFooter, ...currentFooter };
 
   if (!currentPortalConfig.roles || typeof currentPortalConfig.roles !== 'object') {
     currentPortalConfig.roles = {};
@@ -160,6 +200,21 @@ function renderBranding() {
   const form = document.createElement('form');
   form.className = 'admin-form branding-form';
 
+  const defaultBrandingConfig =
+    defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
+      ? defaultPortalConfig.branding
+      : {};
+  const defaultColors =
+    defaultBrandingConfig.colors && typeof defaultBrandingConfig.colors === 'object'
+      ? defaultBrandingConfig.colors
+      : {};
+  const defaultFooter =
+    defaultBrandingConfig.footer && typeof defaultBrandingConfig.footer === 'object'
+      ? defaultBrandingConfig.footer
+      : {};
+  const colors = branding.colors && typeof branding.colors === 'object' ? branding.colors : {};
+  const footer = branding.footer && typeof branding.footer === 'object' ? branding.footer : {};
+
   const titleLabel = document.createElement('label');
   titleLabel.textContent = 'Title';
   const titleInput = document.createElement('input');
@@ -201,10 +256,80 @@ function renderBranding() {
   form.appendChild(logoLabel);
   form.appendChild(backgroundLabel);
 
-  const hint = document.createElement('p');
-  hint.className = 'branding-hint';
-  hint.textContent = 'Use transparent PNG/SVG logos and wide landscape photos (1200×400) for the best presentation.';
-  form.appendChild(hint);
+  const logoHint = document.createElement('p');
+  logoHint.className = 'branding-hint';
+  logoHint.textContent = 'Use transparent PNG/SVG logos and wide landscape photos (1200×400) for the best presentation.';
+  form.appendChild(logoHint);
+
+  const colourHeading = document.createElement('h3');
+  colourHeading.className = 'branding-subheading';
+  colourHeading.textContent = 'Portal colours';
+  form.appendChild(colourHeading);
+
+  const colourHint = document.createElement('p');
+  colourHint.className = 'branding-hint';
+  colourHint.textContent = 'Accepts any CSS colour value (hex, rgb, hsl, etc.). Leave a field blank to use the default.';
+  form.appendChild(colourHint);
+
+  const colourGrid = document.createElement('div');
+  colourGrid.className = 'color-grid';
+
+  COLOR_FIELDS.forEach((field) => {
+    const colorLabel = document.createElement('label');
+    colorLabel.textContent = field.label;
+    const colorInput = document.createElement('input');
+    colorInput.type = 'text';
+    colorInput.name = `color-${field.key}`;
+    colorInput.value = colors[field.key] || '';
+    colorInput.placeholder = defaultColors[field.key] || field.placeholder || '';
+    colorInput.autocomplete = 'off';
+    colorInput.spellcheck = false;
+    colorLabel.appendChild(colorInput);
+    colourGrid.appendChild(colorLabel);
+  });
+
+  form.appendChild(colourGrid);
+
+  const footerHeading = document.createElement('h3');
+  footerHeading.className = 'branding-subheading';
+  footerHeading.textContent = 'Portal footer';
+  form.appendChild(footerHeading);
+
+  const footerHint = document.createElement('p');
+  footerHint.className = 'branding-hint';
+  footerHint.textContent = 'Add optional HTML below the link grid and customise the privacy policy link.';
+  form.appendChild(footerHint);
+
+  const footerHtmlLabel = document.createElement('label');
+  footerHtmlLabel.textContent = 'Custom HTML beneath portal links';
+  const footerHtmlInput = document.createElement('textarea');
+  footerHtmlInput.name = 'footerHtml';
+  footerHtmlInput.rows = 4;
+  footerHtmlInput.placeholder = '<p>Helpful contact details or announcements.</p>';
+  footerHtmlInput.value = footer.customHtml || '';
+  footerHtmlLabel.appendChild(footerHtmlInput);
+
+  const privacyLabel = document.createElement('label');
+  privacyLabel.textContent = 'Privacy policy link text';
+  const privacyInput = document.createElement('input');
+  privacyInput.type = 'text';
+  privacyInput.name = 'footerPrivacyLabel';
+  privacyInput.placeholder = defaultFooter.privacyPolicyLabel || 'Privacy policy';
+  privacyInput.value = footer.privacyPolicyLabel || '';
+  privacyLabel.appendChild(privacyInput);
+
+  const privacyUrlLabel = document.createElement('label');
+  privacyUrlLabel.textContent = 'Privacy policy URL';
+  const privacyUrlInput = document.createElement('input');
+  privacyUrlInput.type = 'url';
+  privacyUrlInput.name = 'footerPrivacyUrl';
+  privacyUrlInput.placeholder = defaultFooter.privacyPolicyUrl || 'https://example.com/privacy';
+  privacyUrlInput.value = footer.privacyPolicyUrl || '';
+  privacyUrlLabel.appendChild(privacyUrlInput);
+
+  form.appendChild(footerHtmlLabel);
+  form.appendChild(privacyLabel);
+  form.appendChild(privacyUrlLabel);
 
   const actions = document.createElement('div');
   actions.className = 'admin-actions';
@@ -242,11 +367,63 @@ function renderBranding() {
 function handleBrandingSubmit(form) {
   const formData = new FormData(form);
   const title = (formData.get('title') || '').toString().trim();
-  const tagline = (formData.get('tagline') || '').toString().trim();
+  const taglineValue = formData.get('tagline');
+  const tagline = typeof taglineValue === 'string' ? taglineValue.trim() : '';
   const logo = (formData.get('logo') || '').toString().trim();
   const backgroundImage = (formData.get('backgroundImage') || '').toString().trim();
 
-  currentPortalConfig.branding = { title, tagline, logo, backgroundImage };
+  const colorOverrides = {};
+  COLOR_FIELDS.forEach((field) => {
+    const rawValue = formData.get(`color-${field.key}`);
+    if (typeof rawValue === 'string') {
+      const trimmed = rawValue.trim();
+      if (trimmed) {
+        colorOverrides[field.key] = trimmed;
+      }
+    }
+  });
+
+  const defaultBrandingConfig =
+    defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
+      ? defaultPortalConfig.branding
+      : {};
+  const defaultColors =
+    defaultBrandingConfig.colors && typeof defaultBrandingConfig.colors === 'object'
+      ? defaultBrandingConfig.colors
+      : {};
+  const mergedColors = {
+    ...defaultColors,
+    ...colorOverrides
+  };
+
+  const footerDefaults =
+    defaultBrandingConfig.footer && typeof defaultBrandingConfig.footer === 'object'
+      ? defaultBrandingConfig.footer
+      : {};
+  const footerHtmlValue = formData.get('footerHtml');
+  const customHtml = typeof footerHtmlValue === 'string' ? footerHtmlValue : '';
+  const privacyLabelValue = formData.get('footerPrivacyLabel');
+  const privacyPolicyLabel = typeof privacyLabelValue === 'string' ? privacyLabelValue.trim() : '';
+  const privacyUrlValue = formData.get('footerPrivacyUrl');
+  const privacyPolicyUrl = typeof privacyUrlValue === 'string' ? privacyUrlValue.trim() : '';
+
+  const footerConfig = {
+    ...footerDefaults,
+    customHtml,
+    privacyPolicyLabel: privacyPolicyLabel || footerDefaults.privacyPolicyLabel || 'Privacy policy',
+    privacyPolicyUrl: privacyPolicyUrl || footerDefaults.privacyPolicyUrl || '#'
+  };
+
+  currentPortalConfig.branding = {
+    ...currentPortalConfig.branding,
+    title,
+    tagline,
+    logo,
+    backgroundImage,
+    colors: mergedColors,
+    footer: footerConfig
+  };
+
   persistPortalConfig();
   renderBranding();
   showConsoleMessage('Branding updated successfully.');
@@ -560,25 +737,6 @@ function leaveConsole() {
   showLoginMessage('Signed out successfully.');
 }
 
-function restoreDefaults() {
-  currentPortalConfig = deepClone(defaultPortalConfig || { branding: {}, roles: {} });
-  if (!currentPortalConfig.branding || typeof currentPortalConfig.branding !== 'object') {
-    currentPortalConfig.branding = {};
-  }
-  if (!currentPortalConfig.roles || typeof currentPortalConfig.roles !== 'object') {
-    currentPortalConfig.roles = {};
-  }
-  ROLE_ORDER.forEach((role) => {
-    if (!Array.isArray(currentPortalConfig.roles[role])) {
-      currentPortalConfig.roles[role] = [];
-    }
-  });
-  persistPortalConfig();
-  renderBranding();
-  renderRoles();
-  showConsoleMessage('Portal configuration restored to default values.');
-}
-
 async function initializeAdmin() {
   try {
     await loadConfiguration();
@@ -600,16 +758,6 @@ if (loginForm) {
 if (logoutButton) {
   logoutButton.addEventListener('click', () => {
     leaveConsole();
-  });
-}
-
-if (restoreButton) {
-  restoreButton.addEventListener('click', () => {
-    const confirmed = window.confirm('Restore the default portal links? This will overwrite any customizations.');
-    if (!confirmed) {
-      return;
-    }
-    restoreDefaults();
   });
 }
 
