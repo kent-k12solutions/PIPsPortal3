@@ -9,6 +9,22 @@ const ROLE_LABELS = {
   staff: 'Staff'
 };
 
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  window.addEventListener('load', () => {
+    const serviceWorkerUrl = new URL('service-worker.js', window.location.href);
+    navigator.serviceWorker
+      .register(serviceWorkerUrl.toString())
+      .catch((error) => {
+        console.error('Service worker registration failed:', error);
+      });
+  });
+}
+
+registerServiceWorker();
 
 const PortalColorUtils =
   window.PortalColorUtils ||
