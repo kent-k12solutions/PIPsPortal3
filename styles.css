@@ -14,6 +14,7 @@
   --color-header-overlay: #ffffffb8;
   --color-header-surface: var(--color-surface);
   --color-session-button-background: #ffffff;
+  --color-session-button-text: var(--color-primary);
   --color-empty-state-background: #ffffff33;
   --color-tertiary-background: #ffffffb8;
   --color-danger: #dc2626;
@@ -197,17 +198,22 @@ a {
   gap: 0.5rem;
 }
 
+
 .pill-button {
   appearance: none;
-  border: 1px solid var(--color-primary);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.85);
   border-radius: 999px;
   background: var(--color-session-button-background);
-  color: var(--color-primary);
+  background-clip: padding-box;
+  color: var(--color-session-button-text, var(--color-primary));
   font-size: 0.85rem;
   font-weight: 600;
   padding: 0.35rem 1.1rem;
   cursor: pointer;
-  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, color 0.15s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 6px 16px rgba(var(--color-text-rgb), 0.14);
 }
 
 .pill-button:disabled {
@@ -269,6 +275,14 @@ a {
   padding: 2.25rem;
   display: flex;
   flex-direction: column;
+}
+
+.portal-panel.admin-panel {
+  background: none;
+  box-shadow: none;
+  border: none;
+  padding: 0;
+  gap: 0;
 }
 
 .admin-card {
