@@ -668,6 +668,7 @@ function showAccountInfo(account) {
     accountRoleElement.textContent = rolesDisplay ? `Role: ${rolesDisplay}` : 'Role: Not assigned';
 
     accountSection.classList.remove('hidden');
+
   } else {
     if (accountNameElement) {
       accountNameElement.textContent = '';
@@ -698,6 +699,7 @@ function showAccountInfo(account) {
     if (logoutButton) {
       logoutButton.classList.add('hidden');
     }
+
     logoutButton.disabled = false;
   }
 

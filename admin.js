@@ -9,6 +9,7 @@ const ROLE_LABELS = {
   staff: 'Staff'
 };
 
+
 const PortalColorUtils =
   window.PortalColorUtils ||
   (window.PortalColorUtils = (() => {
@@ -227,6 +228,7 @@ const PortalAssetUtils =
   })());
 
 const { resolveUrl: resolvePortalAssetUrl } = PortalAssetUtils;
+
 
 const COLOR_FIELDS = [
   { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
