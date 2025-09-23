@@ -392,6 +392,14 @@ const TRANSPARENCY_FIELDS = [
   { key: 'button', label: 'Button background opacity', default: 0.75 }
 ];
 
+const LINK_APPEARANCE_COLOR_FIELDS = [
+  { key: 'backgroundColor', label: 'Tile background colour', placeholder: '#1d4ed8' },
+  { key: 'textColor', label: 'Tile text colour', placeholder: '#ffffff' },
+  { key: 'borderColor', label: 'Tile border colour', placeholder: '#1d4ed880' }
+];
+
+const LINK_OPACITY_DEFAULT = 100;
+
 const ICON_LIBRARY = [
   { label: 'Shield star', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/shield-star.svg' },
   { label: 'School building', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/school.svg' },
@@ -513,6 +521,142 @@ function attachIconPicker(input) {
 
   const datalist = ensureIconDatalist();
   input.setAttribute('list', datalist.id);
+}
+
+function normaliseOptionalLinkColor(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const normalised = normaliseColorValue(trimmed);
+  if (normalised === null || normalised === undefined) {
+    return '';
+  }
+
+  return normalised;
+}
+
+function parseLinkOpacity(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const numeric = typeof value === 'string' ? Number(value) : value;
+  if (typeof numeric !== 'number' || Number.isNaN(numeric)) {
+    return null;
+  }
+
+  const adjusted = numeric > 1 ? numeric / 100 : numeric;
+  const clamped = Math.min(1, Math.max(0, adjusted));
+  return Number(clamped.toFixed(3));
+}
+
+function normaliseLinkRecord(link = {}) {
+  if (!link || typeof link !== 'object') {
+    return {
+      title: '',
+      url: '',
+      icon: '',
+      target: '_blank'
+    };
+  }
+
+  const normalised = {
+    title: typeof link.title === 'string' ? link.title.trim() : '',
+    url: typeof link.url === 'string' ? link.url.trim() : '',
+    icon: typeof link.icon === 'string' ? link.icon.trim() : '',
+    target: link.target === '_self' ? '_self' : '_blank'
+  };
+
+  const backgroundColor = normaliseOptionalLinkColor(link.backgroundColor);
+  if (backgroundColor) {
+    normalised.backgroundColor = backgroundColor;
+  }
+
+  const textColor = normaliseOptionalLinkColor(link.textColor);
+  if (textColor) {
+    normalised.textColor = textColor;
+  }
+
+  const borderColor = normaliseOptionalLinkColor(link.borderColor);
+  if (borderColor) {
+    normalised.borderColor = borderColor;
+  }
+
+  const opacity = parseLinkOpacity(link.opacity);
+  if (opacity !== null) {
+    normalised.opacity = opacity;
+  }
+
+  return normalised;
+}
+
+function describeLinkAppearance(link = {}) {
+  if (!link || typeof link !== 'object') {
+    return null;
+  }
+
+  const backgroundColor = typeof link.backgroundColor === 'string' ? link.backgroundColor : '';
+  const textColor = typeof link.textColor === 'string' ? link.textColor : '';
+  const borderColor = typeof link.borderColor === 'string' ? link.borderColor : '';
+  const opacity = parseLinkOpacity(link.opacity);
+
+  const parts = [];
+
+  if (backgroundColor) {
+    const labelValue = backgroundColor.toLowerCase() === 'transparent' ? 'transparent' : backgroundColor;
+    if (typeof opacity === 'number' && opacity < 1) {
+      parts.push(`Background: ${labelValue} (${Math.round(opacity * 100)}% opacity)`);
+    } else {
+      parts.push(`Background: ${labelValue}`);
+    }
+  } else if (typeof opacity === 'number' && opacity < 1) {
+    parts.push(`Background opacity: ${Math.round(opacity * 100)}%`);
+  }
+
+  if (textColor) {
+    parts.push(`Text: ${textColor}`);
+  }
+
+  if (borderColor) {
+    parts.push(`Border: ${borderColor}`);
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const swatchColor = backgroundColor || borderColor || textColor || '';
+
+  return {
+    parts,
+    swatchColor
+  };
+}
+
+function updateLinkOpacityDisplay(slider) {
+  if (!slider) {
+    return;
+  }
+
+  const row = slider.closest('.transparency-control__row');
+  if (!row) {
+    return;
+  }
+
+  const valueElement = row.querySelector('.transparency-control__value');
+  if (!valueElement) {
+    return;
+  }
+
+  const numeric = Number(slider.value);
+  const safeValue = Number.isNaN(numeric) ? LINK_OPACITY_DEFAULT : Math.min(100, Math.max(0, numeric));
+  valueElement.textContent = `${safeValue}% opacity`;
 }
 
 const loginSection = document.getElementById('admin-login');
@@ -1102,6 +1246,16 @@ function loadCurrentPortalConfig() {
     currentPortalConfig.roles = {};
   }
 
+  const normalisedRoles = {};
+  Object.entries(currentPortalConfig.roles).forEach(([role, links]) => {
+    if (Array.isArray(links)) {
+      normalisedRoles[role] = links.map((link) => normaliseLinkRecord(link));
+    } else {
+      normalisedRoles[role] = [];
+    }
+  });
+  currentPortalConfig.roles = normalisedRoles;
+
   ROLE_ORDER.forEach((role) => {
     if (!Array.isArray(currentPortalConfig.roles[role])) {
       currentPortalConfig.roles[role] = [];
@@ -1110,9 +1264,26 @@ function loadCurrentPortalConfig() {
 }
 
 function persistPortalConfig() {
+  const rolesPayload = {};
+  if (currentPortalConfig.roles && typeof currentPortalConfig.roles === 'object') {
+    Object.entries(currentPortalConfig.roles).forEach(([role, links]) => {
+      if (Array.isArray(links)) {
+        rolesPayload[role] = links.map((link) => normaliseLinkRecord(link));
+      }
+    });
+  }
+
+  ROLE_ORDER.forEach((role) => {
+    if (!Array.isArray(rolesPayload[role])) {
+      rolesPayload[role] = [];
+    }
+  });
+
+  currentPortalConfig.roles = rolesPayload;
+
   const payload = {
     branding: currentPortalConfig.branding || {},
-    roles: currentPortalConfig.roles || {}
+    roles: rolesPayload
   };
   if (!payload.branding || typeof payload.branding !== 'object') {
     payload.branding = {};
@@ -1723,6 +1894,30 @@ function createLinkListItem(roleKey, link, index) {
   info.appendChild(url);
   info.appendChild(target);
 
+  const appearanceSummary = describeLinkAppearance(link);
+  if (appearanceSummary) {
+    const appearanceRow = document.createElement('div');
+    appearanceRow.className = 'link-info__appearance';
+
+    if (appearanceSummary.swatchColor) {
+      const swatch = document.createElement('span');
+      swatch.className = 'link-appearance-swatch';
+      swatch.style.setProperty('--link-appearance-swatch-color', appearanceSummary.swatchColor);
+      appearanceRow.appendChild(swatch);
+    }
+
+    const details = document.createElement('div');
+    details.className = 'link-info__appearance-details';
+    appearanceSummary.parts.forEach((part) => {
+      const detail = document.createElement('span');
+      detail.textContent = part;
+      details.appendChild(detail);
+    });
+
+    appearanceRow.appendChild(details);
+    info.appendChild(appearanceRow);
+  }
+
   const actions = document.createElement('div');
   actions.className = 'link-actions';
 
@@ -1829,6 +2024,71 @@ function buildRoleSection(roleKey) {
   form.appendChild(iconLabel);
   form.appendChild(targetLabel);
 
+  const appearanceFieldset = document.createElement('fieldset');
+  appearanceFieldset.className = 'link-appearance-section';
+
+  const appearanceLegend = document.createElement('legend');
+  appearanceLegend.textContent = 'Tile appearance (optional)';
+  appearanceFieldset.appendChild(appearanceLegend);
+
+  const appearanceHint = document.createElement('p');
+  appearanceHint.className = 'branding-hint';
+  appearanceHint.textContent =
+    'Override the background, text colour, border, and opacity for this specific tile.';
+  appearanceFieldset.appendChild(appearanceHint);
+
+  const appearanceGrid = document.createElement('div');
+  appearanceGrid.className = 'link-appearance-grid';
+
+  LINK_APPEARANCE_COLOR_FIELDS.forEach((field) => {
+    const colorLabel = document.createElement('label');
+    colorLabel.textContent = field.label;
+    const colorInput = document.createElement('input');
+    colorInput.type = 'text';
+    colorInput.name = field.key;
+    colorInput.placeholder = field.placeholder || '';
+    colorInput.autocomplete = 'off';
+    colorInput.spellcheck = false;
+    colorInput.classList.add('link-color-input');
+    colorInput.dataset.fieldLabel = field.label;
+    colorLabel.appendChild(colorInput);
+    appearanceGrid.appendChild(colorLabel);
+    initialiseColorInput(colorInput, '');
+  });
+
+  appearanceFieldset.appendChild(appearanceGrid);
+
+  const opacityLabel = document.createElement('label');
+  opacityLabel.className = 'transparency-control';
+
+  const opacityLabelText = document.createElement('span');
+  opacityLabelText.textContent = 'Tile background opacity';
+  opacityLabel.appendChild(opacityLabelText);
+
+  const opacityRow = document.createElement('div');
+  opacityRow.className = 'transparency-control__row';
+
+  const opacitySlider = document.createElement('input');
+  opacitySlider.type = 'range';
+  opacitySlider.name = 'opacity';
+  opacitySlider.className = 'transparency-control__slider';
+  opacitySlider.min = '0';
+  opacitySlider.max = '100';
+  opacitySlider.step = '1';
+  opacitySlider.value = String(LINK_OPACITY_DEFAULT);
+
+  const opacityValue = document.createElement('span');
+  opacityValue.className = 'transparency-control__value';
+  opacityRow.appendChild(opacitySlider);
+  opacityRow.appendChild(opacityValue);
+  opacityLabel.appendChild(opacityRow);
+  appearanceFieldset.appendChild(opacityLabel);
+
+  form.appendChild(appearanceFieldset);
+
+  updateLinkOpacityDisplay(opacitySlider);
+  opacitySlider.addEventListener('input', () => updateLinkOpacityDisplay(opacitySlider));
+
   const actionRow = document.createElement('div');
   actionRow.className = 'admin-actions';
 
@@ -1882,6 +2142,19 @@ function resetForm(form) {
   if (submit) {
     submit.textContent = 'Add link';
   }
+  LINK_APPEARANCE_COLOR_FIELDS.forEach((field) => {
+    const input = form.querySelector(`input[name="${field.key}"]`);
+    if (input) {
+      input.value = '';
+      input.classList.remove('color-input--invalid');
+      updateColorInputPreviewFromState(input, false);
+    }
+  });
+  const opacitySlider = form.querySelector('input[name="opacity"]');
+  if (opacitySlider) {
+    opacitySlider.value = String(LINK_OPACITY_DEFAULT);
+    updateLinkOpacityDisplay(opacitySlider);
+  }
   showConsoleMessage('');
 }
 
@@ -1903,7 +2176,71 @@ function handleFormSubmit(form) {
     return;
   }
 
-  const linkData = { title, url, icon, target };
+  const appearance = {
+    backgroundColor: '',
+    textColor: '',
+    borderColor: ''
+  };
+
+  for (const field of LINK_APPEARANCE_COLOR_FIELDS) {
+    const input = form.querySelector(`input[name="${field.key}"]`);
+    const rawValue = input && typeof input.value === 'string' ? input.value.trim() : '';
+
+    if (!rawValue) {
+      appearance[field.key] = '';
+      if (input) {
+        input.classList.remove('color-input--invalid');
+        updateColorInputPreviewFromState(input, false);
+      }
+      continue;
+    }
+
+    const normalised = normaliseColorValue(rawValue);
+    if (!normalised) {
+      if (input) {
+        updateColorInputPreviewFromState(input, true);
+        input.focus();
+      }
+      showConsoleMessage(`"${field.label}" must be blank or a valid CSS colour.`, true);
+      return;
+    }
+
+    appearance[field.key] = normalised;
+    if (input) {
+      if (normalised !== rawValue) {
+        input.value = normalised;
+      }
+      updateColorInputPreviewFromState(input, false);
+    }
+  }
+
+  const opacitySlider = form.querySelector('input[name="opacity"]');
+  let opacityValue = null;
+  if (opacitySlider) {
+    const rawOpacity = Number(opacitySlider.value);
+    if (!Number.isNaN(rawOpacity)) {
+      const safeOpacity = Math.min(100, Math.max(0, rawOpacity));
+      opacitySlider.value = String(safeOpacity);
+      opacityValue = Number((safeOpacity / 100).toFixed(3));
+    }
+    updateLinkOpacityDisplay(opacitySlider);
+  }
+
+  const linkPayload = {
+    title,
+    url,
+    icon,
+    target,
+    backgroundColor: appearance.backgroundColor,
+    textColor: appearance.textColor,
+    borderColor: appearance.borderColor
+  };
+
+  if (opacityValue !== null) {
+    linkPayload.opacity = opacityValue;
+  }
+
+  const linkData = normaliseLinkRecord(linkPayload);
   const index = indexValue === '' ? -1 : Number(indexValue);
 
   if (index >= 0 && Number.isInteger(index)) {
@@ -1935,6 +2272,23 @@ function startEditLink(roleKey, index) {
   form.querySelector('input[name="icon"]').value = link.icon || '';
   form.querySelector('select[name="target"]').value = link.target === '_self' ? '_self' : '_blank';
   form.querySelector('input[name="index"]').value = String(index);
+
+  LINK_APPEARANCE_COLOR_FIELDS.forEach((field) => {
+    const input = form.querySelector(`input[name="${field.key}"]`);
+    if (input) {
+      input.value = typeof link[field.key] === 'string' ? link[field.key] : '';
+      input.classList.remove('color-input--invalid');
+      updateColorInputPreviewFromState(input, false);
+    }
+  });
+
+  const opacitySlider = form.querySelector('input[name="opacity"]');
+  if (opacitySlider) {
+    const opacity = parseLinkOpacity(link.opacity);
+    const sliderValue = opacity !== null ? Math.round(opacity * 100) : LINK_OPACITY_DEFAULT;
+    opacitySlider.value = String(sliderValue);
+    updateLinkOpacityDisplay(opacitySlider);
+  }
 
   const submit = form.querySelector('button[type="submit"]');
   if (submit) {
