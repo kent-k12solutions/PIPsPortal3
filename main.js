@@ -60,6 +60,209 @@ const COLOR_VARIABLE_MAP = {
 let msalInstance;
 let loginRequest = {};
 let defaultPortalConfig = { branding: {}, roles: {} };
+let accountDetailsEnabled = true;
+
+let colorProbeElement = null;
+
+function getColorProbeElement() {
+  if (!colorProbeElement) {
+    colorProbeElement = document.createElement('span');
+    colorProbeElement.style.display = 'none';
+    document.body.appendChild(colorProbeElement);
+  }
+  return colorProbeElement;
+}
+
+function isValidCssColor(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const test = document.createElement('option');
+  test.style.color = '';
+  test.style.color = value.trim();
+  return Boolean(test.style.color);
+}
+
+function componentToHex(value) {
+  const clamped = Math.min(255, Math.max(0, Math.round(Number(value))));
+  return clamped.toString(16).padStart(2, '0');
+}
+
+function normaliseColorValue(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !isValidCssColor(trimmed)) {
+    return null;
+  }
+
+  const probe = getColorProbeElement();
+  const previous = probe.style.color;
+  probe.style.color = trimmed;
+  const computed = window.getComputedStyle(probe).color;
+  probe.style.color = previous;
+
+  const match = computed.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const [rRaw, gRaw, bRaw, aRaw] = parts;
+  const r = Number(rRaw);
+  const g = Number(gRaw);
+  const b = Number(bRaw);
+
+  if ([r, g, b].some((component) => Number.isNaN(component))) {
+    return null;
+  }
+
+  const alpha = Number.isNaN(Number(aRaw)) ? 1 : Number(aRaw);
+  const clampedAlpha = Math.min(1, Math.max(0, alpha));
+
+  const hexBase = `#${componentToHex(r)}${componentToHex(g)}${componentToHex(b)}`;
+  if (clampedAlpha < 1) {
+    const alphaHex = componentToHex(clampedAlpha * 255);
+    if (alphaHex !== 'ff') {
+      return `${hexBase}${alphaHex}`.toLowerCase();
+    }
+  }
+
+  return hexBase.toLowerCase();
+}
+
+function normaliseColorMap(map = {}) {
+  const normalised = {};
+  if (!map || typeof map !== 'object') {
+    return normalised;
+  }
+
+  Object.entries(map).forEach(([key, value]) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const normalisedValue = normaliseColorValue(value);
+    if (normalisedValue) {
+      normalised[key] = normalisedValue;
+    }
+  });
+
+  return normalised;
+}
+
+function resolveColorToRgbComponents(value) {
+  if (!value || !document || !document.body) {
+    return null;
+  }
+
+  const probe = document.createElement('span');
+  probe.style.color = value;
+  probe.style.display = 'none';
+  document.body.appendChild(probe);
+  const computedColor = window.getComputedStyle(probe).color;
+  probe.remove();
+
+  const match = computedColor.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.length < 3) {
+    return null;
+  }
+
+  return parts.slice(0, 3).join(', ');
+}
+
+function applyColorVariables(colors = {}) {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  const normalisedColors = normaliseColorMap(colors);
+
+  Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
+    const value = normalisedColors[key];
+    if (value) {
+      root.style.setProperty(variable, value);
+    } else {
+      root.style.removeProperty(variable);
+    }
+  });
+
+  const primarySource =
+    normalisedColors.primary || window.getComputedStyle(root).getPropertyValue('--color-primary');
+  const primaryRgb = resolveColorToRgbComponents(primarySource.trim());
+  if (primaryRgb) {
+    root.style.setProperty('--color-primary-rgb', primaryRgb);
+  }
+
+  const textSource =
+    normalisedColors.text || window.getComputedStyle(root).getPropertyValue('--color-text');
+  const textRgb = resolveColorToRgbComponents(textSource.trim());
+  if (textRgb) {
+    root.style.setProperty('--color-text-rgb', textRgb);
+  }
+
+  const mutedSource =
+    normalisedColors.muted || window.getComputedStyle(root).getPropertyValue('--color-muted');
+  const mutedRgb = resolveColorToRgbComponents(mutedSource.trim());
+  if (mutedRgb) {
+    root.style.setProperty('--color-muted-rgb', mutedRgb);
+  }
+}
+
+function applyFooterSettings(footerConfig = {}) {
+  if (portalCustomFooter) {
+    const rawHtml = typeof footerConfig.customHtml === 'string' ? footerConfig.customHtml : '';
+    if (rawHtml.trim()) {
+      portalCustomFooter.innerHTML = rawHtml;
+      portalCustomFooter.classList.remove('hidden');
+    } else {
+      portalCustomFooter.innerHTML = '';
+      portalCustomFooter.classList.add('hidden');
+    }
+  }
+
+  if (privacyPolicyLinkElement) {
+    const label = typeof footerConfig.privacyPolicyLabel === 'string' ? footerConfig.privacyPolicyLabel.trim() : '';
+    const url = typeof footerConfig.privacyPolicyUrl === 'string' ? footerConfig.privacyPolicyUrl.trim() : '';
+
+    const linkText = label || 'Privacy policy';
+    privacyPolicyLinkElement.textContent = linkText;
+
+    if (url) {
+      privacyPolicyLinkElement.href = url;
+      privacyPolicyLinkElement.classList.remove('hidden');
+      privacyPolicyLinkElement.setAttribute('target', '_blank');
+      privacyPolicyLinkElement.setAttribute('rel', 'noopener noreferrer');
+    } else {
+      privacyPolicyLinkElement.href = '#';
+      privacyPolicyLinkElement.classList.add('hidden');
+      privacyPolicyLinkElement.removeAttribute('target');
+      privacyPolicyLinkElement.removeAttribute('rel');
+    }
+  }
+}
+
+function updateCopyright(title) {
+  if (!portalCopyrightElement) {
+    return;
+  }
+
+  const year = new Date().getFullYear();
+  const safeTitle = (title && title.trim()) || initialPortalTitle || 'PIPs Portal';
+  portalCopyrightElement.textContent = `© ${year} ${safeTitle}`;
+}
 
 let colorProbeElement = null;
 
@@ -264,8 +467,17 @@ function updateCopyright(title) {
 }
 
 function setStatus(message) {
-  if (statusElement) {
-    statusElement.textContent = message;
+  if (!statusElement) {
+    return;
+  }
+
+  const text = typeof message === 'string' ? message : '';
+  statusElement.textContent = text;
+
+  if (text.trim()) {
+    statusElement.classList.remove('hidden');
+  } else {
+    statusElement.classList.add('hidden');
   }
 }
 
@@ -392,11 +604,18 @@ function getPortalBranding() {
   const defaultFooter = defaultBranding.footer && typeof defaultBranding.footer === 'object' ? defaultBranding.footer : {};
   const storedFooter = storedBranding.footer && typeof storedBranding.footer === 'object' ? storedBranding.footer : {};
 
+  const defaultShowAccountDetails =
+    typeof defaultBranding.showAccountDetails === 'boolean' ? defaultBranding.showAccountDetails : true;
+  const storedShowAccountDetails =
+    typeof storedBranding.showAccountDetails === 'boolean' ? storedBranding.showAccountDetails : undefined;
+
   return {
     ...defaultBranding,
     ...storedBranding,
     colors: normaliseColorMap({ ...defaultColors, ...storedColors }),
-    footer: { ...defaultFooter, ...storedFooter }
+    footer: { ...defaultFooter, ...storedFooter },
+    showAccountDetails:
+      typeof storedShowAccountDetails === 'boolean' ? storedShowAccountDetails : defaultShowAccountDetails
   };
 }
 
@@ -408,6 +627,17 @@ function applyBranding() {
   const normalisedColors = normaliseColorMap(branding.colors || {});
   branding.colors = normalisedColors;
   applyColorVariables(normalisedColors);
+
+  const showAccountPreference =
+    typeof branding.showAccountDetails === 'boolean'
+      ? branding.showAccountDetails
+      : typeof (defaultPortalConfig.branding || {}).showAccountDetails === 'boolean'
+        ? defaultPortalConfig.branding.showAccountDetails
+        : true;
+  accountDetailsEnabled = showAccountPreference;
+  if (!accountDetailsEnabled && accountSection) {
+    accountSection.classList.add('hidden');
+  }
 
   const pageBackgroundUrl =
     typeof branding.pageBackgroundImage === 'string' ? branding.pageBackgroundImage.trim() : '';
@@ -524,7 +754,7 @@ function renderPortal(roleKey) {
 
 
 function showAccountInfo(account) {
-  if (account) {
+  if (accountDetailsEnabled && account && accountSection && accountNameElement && accountEmailElement && accountRoleElement) {
     const claims = account.idTokenClaims || {};
     const displayName = account.name || claims.name || account.username || 'Signed in';
     const emailClaim = Array.isArray(claims.emails)
@@ -536,16 +766,27 @@ function showAccountInfo(account) {
     accountEmailElement.textContent = emailClaim ? `Email: ${emailClaim}` : 'Email: Not available';
     accountRoleElement.textContent = rolesDisplay ? `Role: ${rolesDisplay}` : 'Role: Not assigned';
 
-    accountSection?.classList.remove('hidden');
+    accountSection.classList.remove('hidden');
+  } else {
+    if (accountNameElement) {
+      accountNameElement.textContent = '';
+    }
+    if (accountEmailElement) {
+      accountEmailElement.textContent = '';
+    }
+    if (accountRoleElement) {
+      accountRoleElement.textContent = '';
+    }
+    if (accountSection) {
+      accountSection.classList.add('hidden');
+    }
+  }
+
+  if (account) {
     loginButton?.classList.add('hidden');
     logoutButton?.classList.remove('hidden');
     logoutButton.disabled = false;
   } else {
-    accountNameElement.textContent = '';
-    accountEmailElement.textContent = '';
-    accountRoleElement.textContent = '';
-
-    accountSection?.classList.add('hidden');
     loginButton?.classList.remove('hidden');
     logoutButton?.classList.add('hidden');
     logoutButton.disabled = false;
@@ -607,7 +848,7 @@ function initializeMsal(config) {
       const account = msalInstance.getActiveAccount() || msalInstance.getAllAccounts()[0];
       if (account) {
         msalInstance.setActiveAccount(account);
-        setStatus('Signed in successfully.');
+        setStatus('');
       } else {
         setStatus('You are not signed in.');
       }
@@ -697,8 +938,8 @@ fetch('config.json')
 
 window.addEventListener('storage', (event) => {
   if (event.key === PORTAL_LINKS_STORAGE_KEY) {
+    applyBranding();
     const account = msalInstance ? msalInstance.getActiveAccount() : null;
     showAccountInfo(account || null);
-    applyBranding();
   }
 });

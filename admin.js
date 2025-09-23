@@ -12,7 +12,6 @@ const ROLE_LABELS = {
 const COLOR_FIELDS = [
   { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
   { key: 'surface', label: 'Main surface colour', placeholder: '#ffffff' },
-
   { key: 'surfaceSubtle', label: 'Subtle surface background', placeholder: '#f7faff99' },
   { key: 'primary', label: 'Primary brand colour', placeholder: '#1d4ed8' },
   { key: 'primaryDark', label: 'Primary dark colour', placeholder: '#1a3696' },
@@ -186,7 +185,7 @@ function setColorInputPreview(input, color) {
   }
 }
 
-function updateColorInputPreviewFromState(input, markInvalid = false) {
+function updateColorInputPreviewFromState(input, markInvalid = false, commitValue = true) {
   if (!input) {
     return true;
   }
@@ -212,7 +211,7 @@ function updateColorInputPreviewFromState(input, markInvalid = false) {
     return false;
   }
 
-  if (normalisedValue !== raw) {
+  if (commitValue && normalisedValue !== raw) {
     input.value = normalisedValue;
   }
 
@@ -238,7 +237,7 @@ function initialiseColorInput(input, defaultColor) {
   updateColorInputPreviewFromState(input, true);
 
   input.addEventListener('input', () => {
-    updateColorInputPreviewFromState(input, false);
+    updateColorInputPreviewFromState(input, false, false);
   });
 
   const handleValidation = () => {
@@ -485,6 +484,16 @@ function renderBranding() {
   currentPortalConfig.branding.colors = colors;
   const footer = branding.footer && typeof branding.footer === 'object' ? branding.footer : {};
 
+  const defaultShowAccountDetails =
+    typeof defaultBrandingConfig.showAccountDetails === 'boolean'
+      ? defaultBrandingConfig.showAccountDetails
+      : true;
+  const showAccountDetailsSetting =
+    typeof branding.showAccountDetails === 'boolean'
+      ? branding.showAccountDetails
+      : defaultShowAccountDetails;
+  currentPortalConfig.branding.showAccountDetails = showAccountDetailsSetting;
+
   const titleLabel = document.createElement('label');
   titleLabel.textContent = 'Title';
   const titleInput = document.createElement('input');
@@ -502,6 +511,23 @@ function renderBranding() {
   taglineInput.placeholder = 'Short supporting sentence beneath the portal title.';
   taglineInput.value = branding.tagline || '';
   taglineLabel.appendChild(taglineInput);
+
+  const accountToggleLabel = document.createElement('label');
+  accountToggleLabel.className = 'toggle-field';
+  const accountToggleInput = document.createElement('input');
+  accountToggleInput.type = 'checkbox';
+  accountToggleInput.name = 'showAccountDetails';
+  accountToggleInput.value = '1';
+  accountToggleInput.checked = showAccountDetailsSetting;
+  const accountToggleText = document.createElement('span');
+  accountToggleText.textContent = 'Show signed-in account details in the header';
+  accountToggleLabel.appendChild(accountToggleInput);
+  accountToggleLabel.appendChild(accountToggleText);
+
+  const accountToggleHint = document.createElement('p');
+  accountToggleHint.className = 'branding-hint';
+  accountToggleHint.textContent =
+    'Displays the signed-in user\'s name, email address, and mapped role beneath the intro text.';
 
   const logoLabel = document.createElement('label');
   logoLabel.textContent = 'Logo image URL';
@@ -523,6 +549,8 @@ function renderBranding() {
 
   form.appendChild(titleLabel);
   form.appendChild(taglineLabel);
+  form.appendChild(accountToggleLabel);
+  form.appendChild(accountToggleHint);
   form.appendChild(logoLabel);
   form.appendChild(backgroundLabel);
 
@@ -673,6 +701,7 @@ function handleBrandingSubmit(form) {
   const logo = (formData.get('logo') || '').toString().trim();
   const backgroundImage = (formData.get('backgroundImage') || '').toString().trim();
   const pageBackgroundImage = (formData.get('pageBackgroundImage') || '').toString().trim();
+  const showAccountDetails = formData.has('showAccountDetails');
 
   const colorOverrides = {};
   for (const field of COLOR_FIELDS) {
@@ -742,6 +771,7 @@ function handleBrandingSubmit(form) {
     logo,
     backgroundImage,
     pageBackgroundImage,
+    showAccountDetails,
     colors: mergedColors,
     footer: footerConfig
   };
