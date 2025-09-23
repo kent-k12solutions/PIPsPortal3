@@ -59,13 +59,21 @@
           "title": "District Announcements",
           "url": "https://www.example.com/announcements",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/volume.svg",
-          "target": "_blank"
+          "target": "_blank",
+          "backgroundColor": "#1d4ed8",
+          "textColor": "#ffffff",
+          "borderColor": "#ffffff66",
+          "opacity": 0.88
         },
         {
           "title": "Contact Us",
           "url": "https://www.example.com/contact",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/phone.svg",
-          "target": "_self"
+          "target": "_self",
+          "backgroundColor": "#0ea5e9",
+          "textColor": "#ffffff",
+          "borderColor": "#ffffff66",
+          "opacity": 0.82
         }
       ],
       "parents": [
@@ -73,13 +81,21 @@
           "title": "Grades & Attendance",
           "url": "https://www.example.com/grades",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/report-analytics.svg",
-          "target": "_blank"
+          "target": "_blank",
+          "backgroundColor": "#7c3aed",
+          "textColor": "#ffffff",
+          "borderColor": "#ffffff66",
+          "opacity": 0.82
         },
         {
           "title": "Meal Payments",
           "url": "https://www.example.com/meals",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/credit-card.svg",
-          "target": "_blank"
+          "target": "_blank",
+          "backgroundColor": "#f97316",
+          "textColor": "#ffffff",
+          "borderColor": "#ffffff80",
+          "opacity": 0.86
         }
       ],
       "students": [
@@ -87,13 +103,21 @@
           "title": "Class Schedule",
           "url": "https://www.example.com/schedule",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/calendar.svg",
-          "target": "_self"
+          "target": "_self",
+          "backgroundColor": "#10b981",
+          "textColor": "#0f172a",
+          "borderColor": "#0f172a33",
+          "opacity": 0.85
         },
         {
           "title": "Library Resources",
           "url": "https://www.example.com/library",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/book.svg",
-          "target": "_blank"
+          "target": "_blank",
+          "backgroundColor": "#facc15",
+          "textColor": "#0f172a",
+          "borderColor": "#0f172a44",
+          "opacity": 0.9
         }
       ],
       "staff": [
@@ -101,13 +125,21 @@
           "title": "HR Portal",
           "url": "https://www.example.com/hr",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/id.svg",
-          "target": "_blank"
+          "target": "_blank",
+          "backgroundColor": "#334155",
+          "textColor": "#f8fafc",
+          "borderColor": "#f8fafc55",
+          "opacity": 0.75
         },
         {
           "title": "IT Help Desk",
           "url": "https://www.example.com/helpdesk",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/tools.svg",
-          "target": "_self"
+          "target": "_self",
+          "backgroundColor": "#ef4444",
+          "textColor": "#ffffff",
+          "borderColor": "#ffffff66",
+          "opacity": 0.8
         }
       ]
     }

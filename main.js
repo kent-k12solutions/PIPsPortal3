@@ -391,6 +391,187 @@ const TRANSPARENCY_TARGETS = {
   }
 };
 
+function normaliseOptionalLinkColor(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const normalised = normaliseColorValue(trimmed);
+  if (normalised === null || normalised === undefined) {
+    return '';
+  }
+
+  return normalised;
+}
+
+function parseLinkOpacity(value) {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+
+  const numeric = typeof value === 'string' ? Number(value) : value;
+  if (typeof numeric !== 'number' || Number.isNaN(numeric)) {
+    return null;
+  }
+
+  const adjusted = numeric > 1 ? numeric / 100 : numeric;
+  const clamped = Math.min(1, Math.max(0, adjusted));
+  return Number(clamped.toFixed(3));
+}
+
+function normaliseLinkConfig(link = {}) {
+  if (!link || typeof link !== 'object') {
+    return {
+      title: '',
+      url: '',
+      icon: '',
+      target: '_blank'
+    };
+  }
+
+  const normalised = {
+    title: typeof link.title === 'string' ? link.title.trim() : '',
+    url: typeof link.url === 'string' ? link.url.trim() : '',
+    icon: typeof link.icon === 'string' ? link.icon.trim() : '',
+    target: link.target === '_self' ? '_self' : '_blank'
+  };
+
+  const backgroundColor = normaliseOptionalLinkColor(link.backgroundColor);
+  if (backgroundColor) {
+    normalised.backgroundColor = backgroundColor;
+  }
+
+  const textColor = normaliseOptionalLinkColor(link.textColor);
+  if (textColor) {
+    normalised.textColor = textColor;
+  }
+
+  const borderColor = normaliseOptionalLinkColor(link.borderColor);
+  if (borderColor) {
+    normalised.borderColor = borderColor;
+  }
+
+  const opacity = parseLinkOpacity(link.opacity);
+  if (opacity !== null) {
+    normalised.opacity = opacity;
+  }
+
+  return normalised;
+}
+
+function formatAlpha(alpha) {
+  if (alpha >= 1) {
+    return '1';
+  }
+
+  return alpha.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function deriveBorderColors(baseColor, opacity) {
+  if (!baseColor || typeof baseColor !== 'string') {
+    return { border: '', hover: '' };
+  }
+
+  if (baseColor.toLowerCase() === 'transparent') {
+    return { border: 'transparent', hover: 'transparent' };
+  }
+
+  const rgb = resolveColorToRgbComponents(baseColor);
+  if (!rgb) {
+    return { border: baseColor, hover: baseColor };
+  }
+
+  let baseAlpha = 0.35;
+  if (typeof opacity === 'number') {
+    baseAlpha = Math.min(1, Math.max(0.12, opacity + 0.15));
+  }
+  const hoverAlpha = Math.min(1, baseAlpha + 0.1);
+
+  return {
+    border: `rgba(${rgb}, ${formatAlpha(baseAlpha)})`,
+    hover: `rgba(${rgb}, ${formatAlpha(hoverAlpha)})`
+  };
+}
+
+function applyLinkAppearance(card, link) {
+  if (!card || !link || typeof link !== 'object') {
+    return;
+  }
+
+  const backgroundColor = typeof link.backgroundColor === 'string' ? link.backgroundColor : '';
+  const textColor = typeof link.textColor === 'string' ? link.textColor : '';
+  const borderColor = typeof link.borderColor === 'string' ? link.borderColor : '';
+  const opacity = parseLinkOpacity(link.opacity);
+
+  let hasCustomStyle = false;
+
+  if (backgroundColor) {
+    let effectiveBackground = backgroundColor;
+    if (backgroundColor.toLowerCase() !== 'transparent' && typeof opacity === 'number') {
+      const combined = combineColorWithAlpha(backgroundColor, opacity);
+      if (combined) {
+        effectiveBackground = combined;
+      }
+    }
+    card.style.setProperty('--link-card-background', effectiveBackground);
+    card.style.removeProperty('--link-card-background-opacity');
+    hasCustomStyle = true;
+
+    if (!textColor && backgroundColor.toLowerCase() !== 'transparent') {
+      const readableText = getReadableTextColor(backgroundColor);
+      if (readableText) {
+        card.style.setProperty('--link-card-text-color', readableText);
+      }
+    }
+  } else {
+    card.style.removeProperty('--link-card-background');
+  }
+
+  if (!backgroundColor && typeof opacity === 'number') {
+    card.style.setProperty('--link-card-background-opacity', formatAlpha(opacity));
+    hasCustomStyle = true;
+  } else if (!backgroundColor) {
+    card.style.removeProperty('--link-card-background-opacity');
+  }
+
+  if (textColor) {
+    card.style.setProperty('--link-card-text-color', textColor);
+    hasCustomStyle = true;
+  }
+
+  if (borderColor) {
+    card.style.setProperty('--link-card-border-color', borderColor);
+    card.style.setProperty('--link-card-hover-border-color', borderColor);
+    hasCustomStyle = true;
+  } else if (backgroundColor && backgroundColor.toLowerCase() !== 'transparent') {
+    const derived = deriveBorderColors(backgroundColor, opacity);
+    if (derived.border) {
+      card.style.setProperty('--link-card-border-color', derived.border);
+    }
+    if (derived.hover) {
+      card.style.setProperty('--link-card-hover-border-color', derived.hover);
+    }
+  }
+
+  const shadowSource = textColor || (backgroundColor && backgroundColor.toLowerCase() !== 'transparent' ? backgroundColor : '');
+  if (shadowSource) {
+    const rgb = resolveColorToRgbComponents(shadowSource);
+    if (rgb) {
+      const alpha = textColor ? 0.35 : 0.25;
+      card.style.setProperty('--link-card-icon-filter', `drop-shadow(0 3px 8px rgba(${rgb}, ${formatAlpha(alpha)}))`);
+    }
+  }
+
+  if (hasCustomStyle) {
+    card.classList.add('link-card--custom');
+  }
+}
+
 let msalInstance;
 let loginRequest = {};
 let logoutRedirectUri = null;
@@ -798,11 +979,11 @@ function getStoredPortalConfig() {
 function getPortalLinksForRole(roleKey) {
   const stored = getStoredPortalConfig();
   if (stored && stored.roles && Array.isArray(stored.roles[roleKey])) {
-    return stored.roles[roleKey];
+    return stored.roles[roleKey].map((link) => normaliseLinkConfig(link));
   }
 
   if (defaultPortalConfig.roles && Array.isArray(defaultPortalConfig.roles[roleKey])) {
-    return defaultPortalConfig.roles[roleKey];
+    return defaultPortalConfig.roles[roleKey].map((link) => normaliseLinkConfig(link));
   }
 
   return [];
@@ -1016,6 +1197,8 @@ function renderPortal(roleKey) {
     const title = document.createElement('h3');
     title.textContent = link.title;
     card.appendChild(title);
+
+    applyLinkAppearance(card, link);
 
     linksContainer.appendChild(card);
   });
