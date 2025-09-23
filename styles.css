@@ -1,7 +1,7 @@
 :root {
-  --color-background: #f5f7fb;
-  --color-surface: #ffffff;
-  --color-surface-subtle: #f7faff99;
+  --color-background: #eaf1ff;
+  --color-surface: #ffffffcc;
+  --color-surface-subtle: #f7faff66;
   --color-primary: #1d4ed8;
   --color-primary-accent: #2563eb;
   --color-primary-dark: #1a3696;
@@ -10,18 +10,19 @@
   --color-text-rgb: 31, 41, 55;
   --color-muted: #6b7280;
   --color-muted-rgb: 107, 114, 128;
-  --color-border: #e5e7eb;
-  --color-header-overlay: #ffffffd9;
-  --color-session-button-background: #ffffffd9;
-  --color-empty-state-background: #6b72801f;
-  --color-tertiary-background: #ffffff;
+  --color-border: #ffffff59;
+  --color-header-overlay: #ffffffb8;
+  --color-header-surface: #ffffffcc;
+  --color-session-button-background: #ffffffbf;
+  --color-empty-state-background: #ffffff33;
+  --color-tertiary-background: #ffffffb8;
   --color-danger: #dc2626;
-  --color-footer-background: #ffffff;
-  --color-footer-text: #6b7280;
+  --color-footer-background: #ffffffa6;
+  --color-footer-text: #475569;
   --color-footer-link: #1d4ed8;
   --page-background-image: none;
-  --shadow-elevated: 0 16px 40px rgba(31, 41, 55, 0.12);
-  --shadow-subtle: 0 10px 24px rgba(37, 99, 235, 0.2);
+  --shadow-elevated: 0 18px 48px rgba(15, 23, 42, 0.18);
+  --shadow-subtle: 0 12px 30px rgba(37, 99, 235, 0.22);
   --header-background-image: linear-gradient(
     120deg,
     rgba(var(--color-primary-rgb), 0.2),
@@ -69,12 +70,17 @@ a {
 .site-header,
 .portal-panel,
 .admin-card {
-  background: var(--color-surface);
+  background-color: var(--color-surface);
   border-radius: 20px;
   box-shadow: var(--shadow-elevated);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background-clip: padding-box;
 }
 
 .site-header {
+  background-color: var(--color-header-surface, var(--color-surface));
   position: relative;
   padding: 1.75rem 2rem;
   background-image: var(
@@ -91,7 +97,8 @@ a {
   position: absolute;
   inset: 0;
   background: var(--color-header-overlay);
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   z-index: 0;
 }
 
@@ -293,12 +300,16 @@ a {
 }
 
 .site-footer {
-  max-width: 1100px;
-  margin: 0 auto 4vh;
-  background: var(--color-footer-background);
+  width: 100%;
+  margin: 0;
+  background-color: var(--color-footer-background);
   color: var(--color-footer-text);
   border-radius: 20px;
   box-shadow: var(--shadow-elevated);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  background-clip: padding-box;
   padding: 1.25rem 2rem;
 }
 
@@ -453,10 +464,13 @@ a {
 }
 
 .branding-card {
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(var(--color-text-rgb), 0.12);
   border-radius: 16px;
   padding: 1.5rem;
-  background: var(--color-surface-subtle);
+  background-color: var(--color-surface-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background-clip: padding-box;
 }
 
 .branding-card h2 {
@@ -503,6 +517,36 @@ a {
   color: var(--color-danger);
 }
 
+.transparency-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.transparency-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.transparency-control__row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.transparency-control__value {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  font-weight: 600;
+  min-width: 4.5rem;
+  text-align: right;
+}
+
+.transparency-control__slider {
+  flex: 1;
+}
+
 .admin-form label {
   font-weight: 600;
   display: flex;
@@ -525,9 +569,19 @@ a {
 .admin-form select,
 .admin-form textarea {
   padding: 0.7rem 0.9rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(var(--color-text-rgb), 0.16);
   border-radius: 10px;
   font-size: 0.95rem;
+  background-color: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.admin-form input[type='range'] {
+  padding: 0;
+  border: none;
+  background: transparent;
+  accent-color: var(--color-primary);
 }
 
 .admin-form input[type='checkbox'] {
@@ -551,11 +605,14 @@ a {
 }
 
 .role-section {
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(var(--color-text-rgb), 0.12);
   border-radius: 16px;
   padding: 1.5rem;
   margin-bottom: 2rem;
-  background: var(--color-surface-subtle);
+  background-color: var(--color-surface-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background-clip: padding-box;
 }
 
 .role-section h2 {
@@ -581,8 +638,10 @@ a {
   gap: 0.75rem;
   align-items: center;
   padding: 0.9rem 1rem;
-  background: var(--color-tertiary-background);
-  border: 1px solid var(--color-border);
+  background-color: var(--color-tertiary-background);
+  border: 1px solid rgba(var(--color-text-rgb), 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border-radius: 12px;
 }
 
@@ -602,10 +661,10 @@ a {
 }
 
 .tertiary-button {
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(var(--color-text-rgb), 0.14);
   padding: 0.45rem 1.2rem;
   font-size: 0.85rem;
-  background: var(--color-tertiary-background);
+  background-color: var(--color-tertiary-background);
   color: var(--color-text);
 }
 
