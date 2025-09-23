@@ -7,38 +7,65 @@
   <title>Portal Administration</title>
 </head>
 <body>
-  <main class="admin-layout">
-    <section class="admin-card">
-      <h1>Portal Administration</h1>
-      <p class="admin-description">Manage the resources that appear on the ParentIDPassport portal for each role.</p>
-      <section id="admin-login" aria-live="polite">
-        <form id="admin-login-form" class="admin-form">
-          <label>
-            Username
-            <input id="admin-username" name="username" type="text" autocomplete="username" required>
-          </label>
-          <label>
-            Password
-            <input id="admin-password" name="password" type="password" autocomplete="current-password" required>
-          </label>
-          <button type="submit" class="primary-button">Sign in</button>
-        </form>
-        <p id="admin-login-status" class="admin-status"></p>
-      </section>
-      <section id="admin-console" class="hidden" aria-live="polite">
-        <div class="admin-toolbar">
-          <div>
-            <button id="admin-logout" class="secondary-button">Sign out of admin</button>
-            <button id="admin-restore-defaults" class="tertiary-button">Restore default links</button>
+  <div class="page-shell">
+    <header class="site-header" id="admin-site-header">
+      <div class="site-header__content">
+        <div class="brand">
+          <div class="brand-logo hidden" id="admin-brand-logo">
+            <img id="admin-portal-logo" class="portal-logo hidden" alt="Portal logo" />
           </div>
-          <a href="index.html" class="admin-link">Back to portal</a>
+          <div class="brand-copy">
+            <h1 id="admin-portal-title">Portal Administration</h1>
+            <p id="admin-header-description" class="intro">
+              Configure the <span id="admin-portal-name">PIPs Portal</span> experience for every role.
+            </p>
+            <p id="admin-portal-tagline" class="intro admin-portal-tagline">Sign in with your parent account to unlock your portal.</p>
+          </div>
         </div>
-        <p id="admin-console-status" class="admin-status"></p>
-        <section id="branding-container" class="branding-panel"></section>
-        <div id="roles-container"></div>
+        <div class="session-controls">
+          <a href="index.html" class="pill-button" id="admin-home-link">Home</a>
+        </div>
+      </div>
+    </header>
+    <main class="portal-panel admin-panel">
+      <section class="admin-card">
+        <h2 class="admin-card__title">Administration console</h2>
+        <p class="admin-description">Manage the resources that appear on the ParentIDPassport portal for each role.</p>
+        <section id="admin-login" aria-live="polite">
+          <form id="admin-login-form" class="admin-form">
+            <label>
+              Username
+              <input id="admin-username" name="username" type="text" autocomplete="username" required>
+            </label>
+            <label>
+              Password
+              <input id="admin-password" name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit" class="primary-button">Sign in</button>
+          </form>
+          <p id="admin-login-status" class="admin-status"></p>
+        </section>
+        <section id="admin-console" class="hidden" aria-live="polite">
+          <div class="admin-toolbar">
+            <button id="admin-logout" class="secondary-button">Sign out of admin</button>
+            <a href="index.html" class="admin-link">Home</a>
+          </div>
+          <p id="admin-console-status" class="admin-status"></p>
+          <section id="branding-container" class="branding-panel"></section>
+          <div id="roles-container"></div>
+        </section>
       </section>
-    </section>
-  </main>
+    </main>
+  </div>
+  <footer class="site-footer" id="admin-site-footer">
+    <div class="site-footer__content">
+      <p id="admin-copyright" class="site-footer__copy"></p>
+      <nav class="site-footer__nav" aria-label="Administrative links">
+        <a href="index.html" class="admin-link">Home</a>
+        <a id="admin-privacy-policy-link" class="privacy-link" href="#" target="_blank" rel="noopener noreferrer">Privacy policy</a>
+      </nav>
+    </div>
+  </footer>
   <script src="admin.js"></script>
 </body>
 </html>
