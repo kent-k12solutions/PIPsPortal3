@@ -12,6 +12,7 @@ const ROLE_LABELS = {
 const COLOR_FIELDS = [
   { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
   { key: 'surface', label: 'Main surface colour', placeholder: '#ffffff' },
+
   { key: 'surfaceSubtle', label: 'Subtle surface background', placeholder: '#f7faff99' },
   { key: 'primary', label: 'Primary brand colour', placeholder: '#1d4ed8' },
   { key: 'primaryDark', label: 'Primary dark colour', placeholder: '#1a3696' },
