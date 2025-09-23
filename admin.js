@@ -551,6 +551,7 @@ function applyColorVariablesToDocument(colors = {}) {
 
   const canonicalColors = normalisePortalColorConfig(colors);
   const effectiveColors = { ...canonicalColors };
+  const computedStyle = window.getComputedStyle(root);
 
   if (
     !Object.prototype.hasOwnProperty.call(effectiveColors, 'headerSurface') &&
@@ -574,25 +575,53 @@ function applyColorVariablesToDocument(colors = {}) {
     root.style.setProperty(variable, value);
   });
 
-  const primarySource =
-    effectiveColors.primaryBrand || window.getComputedStyle(root).getPropertyValue('--color-primary');
+  const primarySource = effectiveColors.primaryBrand || computedStyle.getPropertyValue('--color-primary');
   const primaryRgb = resolveColorToRgbComponents(primarySource.trim());
   if (primaryRgb) {
     root.style.setProperty('--color-primary-rgb', primaryRgb);
   }
 
-  const textSource =
-    effectiveColors.mainText || window.getComputedStyle(root).getPropertyValue('--color-text');
+  const textSource = effectiveColors.mainText || computedStyle.getPropertyValue('--color-text');
   const textRgb = resolveColorToRgbComponents(textSource.trim());
   if (textRgb) {
     root.style.setProperty('--color-text-rgb', textRgb);
   }
 
-  const mutedSource =
-    effectiveColors.mutedText || window.getComputedStyle(root).getPropertyValue('--color-muted');
+  const mutedSource = effectiveColors.mutedText || computedStyle.getPropertyValue('--color-muted');
   const mutedRgb = resolveColorToRgbComponents(mutedSource.trim());
   if (mutedRgb) {
     root.style.setProperty('--color-muted-rgb', mutedRgb);
+  }
+
+  const buttonBackgroundOverride =
+    typeof effectiveColors.buttonBackground === 'string' ? effectiveColors.buttonBackground.trim() : '';
+  const computedButtonBackground = computedStyle
+    .getPropertyValue('--color-session-button-background')
+    .trim();
+  const normalisedButtonBackground = buttonBackgroundOverride
+    ? normaliseColorValue(buttonBackgroundOverride)
+    : normaliseColorValue(computedButtonBackground);
+
+  let buttonTextColor = '';
+  if (normalisedButtonBackground && normalisedButtonBackground.toLowerCase() !== 'transparent') {
+    buttonTextColor = getReadableTextColor(normalisedButtonBackground);
+  }
+
+  if (!buttonTextColor) {
+    const fallbackPrimary =
+      typeof effectiveColors.primaryBrand === 'string' && effectiveColors.primaryBrand.trim()
+        ? effectiveColors.primaryBrand.trim()
+        : computedStyle.getPropertyValue('--color-primary').trim();
+    const normalisedFallback = normaliseColorValue(fallbackPrimary);
+    if (normalisedFallback) {
+      buttonTextColor = normalisedFallback;
+    }
+  }
+
+  if (buttonTextColor) {
+    root.style.setProperty('--color-session-button-text', buttonTextColor);
+  } else {
+    root.style.removeProperty('--color-session-button-text');
   }
 }
 
@@ -1385,6 +1414,36 @@ function renderBranding() {
       return;
     }
 
+    const existingBranding =
+      currentPortalConfig.branding && typeof currentPortalConfig.branding === 'object'
+        ? currentPortalConfig.branding
+        : {};
+    const preservedKeys = [
+      'title',
+      'tagline',
+      'logo',
+      'backgroundImage',
+      'pageBackgroundImage'
+    ];
+    const preservedValues = {};
+    preservedKeys.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(existingBranding, key)) {
+        preservedValues[key] = existingBranding[key];
+      }
+    });
+
+    const existingFooter =
+      existingBranding.footer && typeof existingBranding.footer === 'object'
+        ? existingBranding.footer
+        : null;
+    const preservedFooter = {};
+    const footerKeys = ['customHtml', 'privacyPolicyLabel', 'privacyPolicyUrl'];
+    footerKeys.forEach((key) => {
+      if (existingFooter && Object.prototype.hasOwnProperty.call(existingFooter, key)) {
+        preservedFooter[key] = existingFooter[key];
+      }
+    });
+
     currentPortalConfig.branding = deepClone(defaultPortalConfig.branding || {});
     if (
       !currentPortalConfig.branding.colors ||
@@ -1402,6 +1461,18 @@ function renderBranding() {
     currentPortalConfig.branding.transparency = normaliseTransparencyMap(
       currentPortalConfig.branding.transparency
     );
+
+    preservedKeys.forEach((key) => {
+      if (Object.prototype.hasOwnProperty.call(preservedValues, key)) {
+        currentPortalConfig.branding[key] = preservedValues[key];
+      }
+    });
+
+    if (!currentPortalConfig.branding.footer || typeof currentPortalConfig.branding.footer !== 'object') {
+      currentPortalConfig.branding.footer = {};
+    }
+    Object.assign(currentPortalConfig.branding.footer, preservedFooter);
+
     persistPortalConfig();
     renderBranding();
     showConsoleMessage('Branding restored to default values.');
