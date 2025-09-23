@@ -519,6 +519,7 @@ function applyLinkAppearance(card, link) {
       }
     }
     card.style.setProperty('--link-card-background', effectiveBackground);
+    card.style.removeProperty('--link-card-background-opacity');
     hasCustomStyle = true;
 
     if (!textColor && backgroundColor.toLowerCase() !== 'transparent') {
@@ -527,6 +528,15 @@ function applyLinkAppearance(card, link) {
         card.style.setProperty('--link-card-text-color', readableText);
       }
     }
+  } else {
+    card.style.removeProperty('--link-card-background');
+  }
+
+  if (!backgroundColor && typeof opacity === 'number') {
+    card.style.setProperty('--link-card-background-opacity', formatAlpha(opacity));
+    hasCustomStyle = true;
+  } else if (!backgroundColor) {
+    card.style.removeProperty('--link-card-background-opacity');
   }
 
   if (textColor) {
