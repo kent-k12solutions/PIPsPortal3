@@ -9,6 +9,7 @@ const ROLE_LABELS = {
   staff: 'Staff'
 };
 
+
 const PortalColorUtils =
   window.PortalColorUtils ||
   (window.PortalColorUtils = (() => {
