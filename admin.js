@@ -536,8 +536,8 @@ const initialAdminPortalName = adminPortalNameElement ? adminPortalNameElement.t
 const initialAdminPortalTagline = adminPortalTaglineElement ? adminPortalTaglineElement.textContent : '';
 
 let adminCredentials = { username: '', passwordHash: '' };
-let defaultPortalConfig = { branding: {}, roles: {} };
-let currentPortalConfig = { branding: {}, roles: {} };
+let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
+let currentPortalConfig = { branding: {}, roles: {}, authentication: {} };
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -940,7 +940,15 @@ async function loadConfiguration() {
 
   defaultPortalConfig = {
     branding: brandingClone,
-    roles: (config.portal && config.portal.roles) || {}
+    roles: (config.portal && config.portal.roles) || {},
+    authentication: {
+      autoRedirectToSaml:
+        config.portal &&
+        config.portal.authentication &&
+        typeof config.portal.authentication.autoRedirectToSaml === 'boolean'
+          ? config.portal.authentication.autoRedirectToSaml
+          : false
+    }
   };
 }
 
@@ -995,8 +1003,16 @@ function getStoredPortalConfig() {
 
     const branding = parsed.branding && typeof parsed.branding === 'object' ? parsed.branding : {};
     const roles = parsed.roles && typeof parsed.roles === 'object' ? parsed.roles : {};
+    const authenticationSource =
+      parsed.authentication && typeof parsed.authentication === 'object'
+        ? parsed.authentication
+        : {};
+    const authentication = {};
+    if (typeof authenticationSource.autoRedirectToSaml === 'boolean') {
+      authentication.autoRedirectToSaml = authenticationSource.autoRedirectToSaml;
+    }
 
-    return { branding, roles };
+    return { branding, roles, authentication };
   } catch (error) {
     console.warn('Unable to parse stored portal configuration.', error);
     return null;
@@ -1009,11 +1025,13 @@ function loadCurrentPortalConfig() {
   if (stored) {
     currentPortalConfig = deepClone(stored);
   } else {
-    currentPortalConfig = deepClone(defaultPortalConfig || { branding: {}, roles: {} });
+    currentPortalConfig = deepClone(
+      defaultPortalConfig || { branding: {}, roles: {}, authentication: {} }
+    );
   }
 
   if (!currentPortalConfig || typeof currentPortalConfig !== 'object') {
-    currentPortalConfig = { branding: {}, roles: {} };
+    currentPortalConfig = { branding: {}, roles: {}, authentication: {} };
   }
 
   const defaultBranding = defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
@@ -1059,6 +1077,27 @@ function loadCurrentPortalConfig() {
     : {};
   currentPortalConfig.branding.footer = { ...defaultFooter, ...currentFooter };
 
+  const defaultAuthentication =
+    defaultPortalConfig.authentication && typeof defaultPortalConfig.authentication === 'object'
+      ? defaultPortalConfig.authentication
+      : {};
+  const storedAuthentication =
+    currentPortalConfig.authentication && typeof currentPortalConfig.authentication === 'object'
+      ? currentPortalConfig.authentication
+      : {};
+  const defaultAutoRedirect =
+    typeof defaultAuthentication.autoRedirectToSaml === 'boolean'
+      ? defaultAuthentication.autoRedirectToSaml
+      : false;
+  const storedAutoRedirect =
+    typeof storedAuthentication.autoRedirectToSaml === 'boolean'
+      ? storedAuthentication.autoRedirectToSaml
+      : undefined;
+  currentPortalConfig.authentication = {
+    autoRedirectToSaml:
+      storedAutoRedirect !== undefined ? storedAutoRedirect : defaultAutoRedirect
+  };
+
   if (!currentPortalConfig.roles || typeof currentPortalConfig.roles !== 'object') {
     currentPortalConfig.roles = {};
   }
@@ -1089,6 +1128,16 @@ function persistPortalConfig() {
       ? payload.branding.transparency
       : {};
   payload.branding.transparency = normaliseTransparencyMap(transparency);
+  const authentication =
+    currentPortalConfig.authentication && typeof currentPortalConfig.authentication === 'object'
+      ? currentPortalConfig.authentication
+      : {};
+  payload.authentication = {
+    autoRedirectToSaml:
+      typeof authentication.autoRedirectToSaml === 'boolean'
+        ? authentication.autoRedirectToSaml
+        : false
+  };
   localStorage.setItem(PORTAL_LINKS_STORAGE_KEY, JSON.stringify(payload));
 }
 
@@ -1145,6 +1194,24 @@ function renderBranding() {
   );
   currentPortalConfig.branding.transparency = transparency;
 
+  const defaultAuthenticationConfig =
+    defaultPortalConfig.authentication && typeof defaultPortalConfig.authentication === 'object'
+      ? defaultPortalConfig.authentication
+      : {};
+  const defaultAutoRedirect =
+    typeof defaultAuthenticationConfig.autoRedirectToSaml === 'boolean'
+      ? defaultAuthenticationConfig.autoRedirectToSaml
+      : false;
+  const currentAuthentication =
+    currentPortalConfig.authentication && typeof currentPortalConfig.authentication === 'object'
+      ? currentPortalConfig.authentication
+      : {};
+  const autoRedirectSetting =
+    typeof currentAuthentication.autoRedirectToSaml === 'boolean'
+      ? currentAuthentication.autoRedirectToSaml
+      : defaultAutoRedirect;
+  currentPortalConfig.authentication = { autoRedirectToSaml: autoRedirectSetting };
+
   const defaultShowAccountDetails =
     typeof defaultBrandingConfig.showAccountDetails === 'boolean'
       ? defaultBrandingConfig.showAccountDetails
@@ -1172,6 +1239,23 @@ function renderBranding() {
   taglineInput.placeholder = 'Short supporting sentence beneath the portal title.';
   taglineInput.value = branding.tagline || '';
   taglineLabel.appendChild(taglineInput);
+
+  const autoRedirectToggleLabel = document.createElement('label');
+  autoRedirectToggleLabel.className = 'toggle-field';
+  const autoRedirectToggleInput = document.createElement('input');
+  autoRedirectToggleInput.type = 'checkbox';
+  autoRedirectToggleInput.name = 'autoRedirectToSaml';
+  autoRedirectToggleInput.value = '1';
+  autoRedirectToggleInput.checked = autoRedirectSetting;
+  const autoRedirectToggleText = document.createElement('span');
+  autoRedirectToggleText.textContent = 'Automatically start SAML sign-in on load';
+  autoRedirectToggleLabel.appendChild(autoRedirectToggleInput);
+  autoRedirectToggleLabel.appendChild(autoRedirectToggleText);
+
+  const autoRedirectHint = document.createElement('p');
+  autoRedirectHint.className = 'branding-hint';
+  autoRedirectHint.textContent =
+    'Redirect guests to the SAML sign-in flow immediately. Append ?samlAuth=0 to the URL to show the guest portal instead.';
 
   const accountToggleLabel = document.createElement('label');
   accountToggleLabel.className = 'toggle-field';
@@ -1210,6 +1294,8 @@ function renderBranding() {
 
   form.appendChild(titleLabel);
   form.appendChild(taglineLabel);
+  form.appendChild(autoRedirectToggleLabel);
+  form.appendChild(autoRedirectHint);
   form.appendChild(accountToggleLabel);
   form.appendChild(accountToggleHint);
   form.appendChild(logoLabel);
@@ -1462,6 +1548,10 @@ function renderBranding() {
       currentPortalConfig.branding.transparency
     );
 
+    currentPortalConfig.authentication = deepClone(
+      defaultPortalConfig.authentication || { autoRedirectToSaml: false }
+    );
+
     preservedKeys.forEach((key) => {
       if (Object.prototype.hasOwnProperty.call(preservedValues, key)) {
         currentPortalConfig.branding[key] = preservedValues[key];
@@ -1501,6 +1591,7 @@ function handleBrandingSubmit(form) {
   const logo = (formData.get('logo') || '').toString().trim();
   const backgroundImage = (formData.get('backgroundImage') || '').toString().trim();
   const pageBackgroundImage = (formData.get('pageBackgroundImage') || '').toString().trim();
+  const autoRedirectToSaml = formData.has('autoRedirectToSaml');
   const showAccountDetails = formData.has('showAccountDetails');
 
   const colorOverrides = {};
@@ -1605,6 +1696,10 @@ function handleBrandingSubmit(form) {
     colors: mergedColors,
     footer: footerConfig,
     transparency: transparencyConfig
+  };
+
+  currentPortalConfig.authentication = {
+    autoRedirectToSaml
   };
 
   persistPortalConfig();

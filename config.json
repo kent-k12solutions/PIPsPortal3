@@ -50,6 +50,9 @@
         "privacyPolicyUrl": "https://www.example.com/privacy"
       }
     },
+    "authentication": {
+      "autoRedirectToSaml": true
+    },
     "roles": {
       "anonymous": [
         {
