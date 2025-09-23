@@ -262,6 +262,23 @@ const PortalAssetUtils =
 
 const { resolveUrl: resolvePortalAssetUrl } = PortalAssetUtils;
 
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator)) {
+    return;
+  }
+
+  window.addEventListener('load', () => {
+    const serviceWorkerUrl = new URL('service-worker.js', window.location.href);
+    navigator.serviceWorker
+      .register(serviceWorkerUrl.toString())
+      .catch((error) => {
+        console.error('Service worker registration failed:', error);
+      });
+  });
+}
+
+registerServiceWorker();
+
 const siteHeaderElement = document.getElementById('site-header');
 const brandLogoWrapper = document.getElementById('brand-logo');
 const portalLogoElement = document.getElementById('portal-logo');
