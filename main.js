@@ -393,6 +393,7 @@ const TRANSPARENCY_TARGETS = {
 
 let msalInstance;
 let loginRequest = {};
+let logoutRedirectUri = null;
 let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let accountDetailsEnabled = true;
 
@@ -401,6 +402,38 @@ const samlAuthParam = urlParams.get('samlAuth');
 const bypassSamlAuth = samlAuthParam === '0';
 let autoRedirectToSamlEnabled = false;
 let autoRedirectAttempted = false;
+
+function ensureSamlAuthDisabled(url) {
+  const currentLocation = `${window.location.origin}${window.location.pathname}`;
+  const fallback = `${currentLocation}?samlAuth=0`;
+
+  if (typeof url !== 'string' || !url.trim()) {
+    return fallback;
+  }
+
+  try {
+    const resolved = new URL(url, window.location.href);
+    resolved.searchParams.set('samlAuth', '0');
+    return resolved.toString();
+  } catch (error) {
+    try {
+      const fragmentIndex = url.indexOf('#');
+      const fragment = fragmentIndex >= 0 ? url.slice(fragmentIndex) : '';
+      const withoutFragment = fragmentIndex >= 0 ? url.slice(0, fragmentIndex) : url;
+      const [base = '', query = ''] = withoutFragment.split('?');
+      const params = new URLSearchParams(query);
+      params.set('samlAuth', '0');
+      const queryString = params.toString();
+      return `${base}?${queryString}${fragment}`;
+    } catch (secondaryError) {
+      const fragmentIndex = url.indexOf('#');
+      const fragment = fragmentIndex >= 0 ? url.slice(fragmentIndex) : '';
+      const withoutFragment = fragmentIndex >= 0 ? url.slice(0, fragmentIndex) : url;
+      const separator = withoutFragment.includes('?') ? '&' : '?';
+      return `${withoutFragment}${separator}samlAuth=0${fragment}`;
+    }
+  }
+}
 
 function applyColorVariables(colors = {}) {
   const root = document.documentElement;
@@ -1067,6 +1100,7 @@ function getFriendlyErrorMessage(error) {
 
 function initializeMsal(config) {
   loginRequest = { scopes: config.scopes || [] };
+  logoutRedirectUri = ensureSamlAuthDisabled(config.postLogoutRedirectUri || config.redirectUri);
 
   msalInstance = new msal.PublicClientApplication({
     auth: {
@@ -1074,7 +1108,7 @@ function initializeMsal(config) {
       authority: config.authority,
       knownAuthorities: config.knownAuthorities,
       redirectUri: config.redirectUri,
-      postLogoutRedirectUri: config.postLogoutRedirectUri || config.redirectUri
+      postLogoutRedirectUri: logoutRedirectUri
     },
     cache: {
       cacheLocation: 'localStorage',
@@ -1168,7 +1202,7 @@ if (logoutButton) {
     logoutButton.disabled = true;
 
     msalInstance
-      .logoutRedirect()
+      .logoutRedirect({ postLogoutRedirectUri: logoutRedirectUri })
       .catch((error) => {
         console.error('Logout error', error);
         setStatus('Unable to sign out. Check the console for details.');
