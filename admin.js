@@ -12,22 +12,271 @@ const ROLE_LABELS = {
 const COLOR_FIELDS = [
   { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
   { key: 'surface', label: 'Main surface colour', placeholder: '#ffffff' },
-  { key: 'surfaceSubtle', label: 'Subtle surface background', placeholder: 'rgba(247, 250, 255, 0.6)' },
+
+  { key: 'surfaceSubtle', label: 'Subtle surface background', placeholder: '#f7faff99' },
   { key: 'primary', label: 'Primary brand colour', placeholder: '#1d4ed8' },
   { key: 'primaryDark', label: 'Primary dark colour', placeholder: '#1a3696' },
   { key: 'primaryAccent', label: 'Primary accent colour', placeholder: '#2563eb' },
   { key: 'text', label: 'Main text colour', placeholder: '#1f2937' },
   { key: 'muted', label: 'Muted text colour', placeholder: '#6b7280' },
   { key: 'border', label: 'Border colour', placeholder: '#e5e7eb' },
-  { key: 'headerOverlay', label: 'Header overlay colour', placeholder: 'rgba(255, 255, 255, 0.85)' },
-  { key: 'sessionButtonBackground', label: 'Session button background', placeholder: 'rgba(255, 255, 255, 0.85)' },
-  { key: 'emptyStateBackground', label: 'Empty state background', placeholder: 'rgba(107, 114, 128, 0.12)' },
+  { key: 'headerOverlay', label: 'Header overlay colour', placeholder: '#ffffffd9' },
+  { key: 'sessionButtonBackground', label: 'Session button background', placeholder: '#ffffffd9' },
+  { key: 'emptyStateBackground', label: 'Empty state background', placeholder: '#6b72801f' },
   { key: 'tertiaryButtonBackground', label: 'Secondary surface colour', placeholder: '#ffffff' },
   { key: 'danger', label: 'Danger colour', placeholder: '#dc2626' },
   { key: 'footerBackground', label: 'Footer background colour', placeholder: '#ffffff' },
   { key: 'footerText', label: 'Footer text colour', placeholder: '#6b7280' },
   { key: 'footerLink', label: 'Footer link colour', placeholder: '#1d4ed8' }
 ];
+
+const ICON_LIBRARY = [
+  { label: 'Shield star', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/shield-star.svg' },
+  { label: 'School building', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/school.svg' },
+  { label: 'Calendar', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/calendar.svg' },
+  { label: 'Book', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/book.svg' },
+  { label: 'Report analytics', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/report-analytics.svg' },
+  { label: 'Credit card', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/credit-card.svg' },
+  { label: 'Home', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/home.svg' },
+  { label: 'Users group', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/users.svg' },
+  { label: 'Laptop', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/device-laptop.svg' },
+  { label: 'Clipboard list', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/clipboard-list.svg' },
+  { label: 'Help circle', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/help.svg' },
+  { label: 'Tools', url: 'https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/tools.svg' }
+];
+
+let colorProbeElement = null;
+let iconDatalistElement = null;
+
+function getColorProbeElement() {
+  if (!colorProbeElement) {
+    colorProbeElement = document.createElement('span');
+    colorProbeElement.style.display = 'none';
+    document.body.appendChild(colorProbeElement);
+  }
+  return colorProbeElement;
+}
+
+function isValidCssColor(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const test = document.createElement('option');
+  test.style.color = '';
+  test.style.color = value.trim();
+  return Boolean(test.style.color);
+}
+
+function componentToHex(value) {
+  const clamped = Math.min(255, Math.max(0, Math.round(Number(value))));
+  return clamped.toString(16).padStart(2, '0');
+}
+
+function normaliseColorValue(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !isValidCssColor(trimmed)) {
+    return null;
+  }
+
+  const probe = getColorProbeElement();
+  const previous = probe.style.color;
+  probe.style.color = trimmed;
+  const computed = window.getComputedStyle(probe).color;
+  probe.style.color = previous;
+
+  const match = computed.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const [rRaw, gRaw, bRaw, aRaw] = parts;
+  const r = Number(rRaw);
+  const g = Number(gRaw);
+  const b = Number(bRaw);
+
+  if ([r, g, b].some((component) => Number.isNaN(component))) {
+    return null;
+  }
+
+  const alpha = Number.isNaN(Number(aRaw)) ? 1 : Number(aRaw);
+  const clampedAlpha = Math.min(1, Math.max(0, alpha));
+
+  const hexBase = `#${componentToHex(r)}${componentToHex(g)}${componentToHex(b)}`;
+  if (clampedAlpha < 1) {
+    const alphaHex = componentToHex(clampedAlpha * 255);
+    if (alphaHex !== 'ff') {
+      return `${hexBase}${alphaHex}`.toLowerCase();
+    }
+  }
+
+  return hexBase.toLowerCase();
+}
+
+function normaliseColorMap(map = {}) {
+  const normalised = {};
+  if (!map || typeof map !== 'object') {
+    return normalised;
+  }
+
+  Object.entries(map).forEach(([key, value]) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const normalisedValue = normaliseColorValue(value);
+    if (normalisedValue) {
+      normalised[key] = normalisedValue;
+    }
+  });
+
+  return normalised;
+}
+
+function parseHexColor(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const match = value.trim().toLowerCase().match(/^#([0-9a-f]{6})([0-9a-f]{2})?$/);
+  if (!match) {
+    return null;
+  }
+
+  const base = match[1];
+  const alpha = match[2];
+
+  return {
+    r: parseInt(base.slice(0, 2), 16),
+    g: parseInt(base.slice(2, 4), 16),
+    b: parseInt(base.slice(4, 6), 16),
+    a: alpha ? parseInt(alpha, 16) / 255 : 1
+  };
+}
+
+function getReadableTextColor(color) {
+  const parsed = parseHexColor(color);
+  if (!parsed) {
+    return '#1f2937';
+  }
+
+  const brightness = (parsed.r * 299 + parsed.g * 587 + parsed.b * 114) / 1000;
+  return brightness > 155 ? '#111827' : '#ffffff';
+}
+
+function setColorInputPreview(input, color) {
+  if (!input) {
+    return;
+  }
+
+  if (color) {
+    input.style.backgroundColor = color;
+    input.style.color = getReadableTextColor(color);
+  } else {
+    input.style.backgroundColor = '';
+    input.style.color = '';
+  }
+}
+
+function updateColorInputPreviewFromState(input, markInvalid = false) {
+  if (!input) {
+    return true;
+  }
+
+  const raw = input.value.trim();
+  if (!raw) {
+    input.classList.remove('color-input--invalid');
+    const fallback = input.dataset.defaultColor || '';
+    setColorInputPreview(input, fallback);
+    return true;
+  }
+
+  const normalisedValue = normaliseColorValue(raw);
+  if (!normalisedValue) {
+    const fallback = input.dataset.lastPreviewColor || input.dataset.defaultColor || '';
+    setColorInputPreview(input, fallback);
+    if (markInvalid) {
+      input.classList.add('color-input--invalid');
+      input.style.color = '';
+    } else {
+      input.classList.remove('color-input--invalid');
+    }
+    return false;
+  }
+
+  if (normalisedValue !== raw) {
+    input.value = normalisedValue;
+  }
+
+  input.classList.remove('color-input--invalid');
+  input.dataset.lastPreviewColor = normalisedValue;
+  setColorInputPreview(input, normalisedValue);
+  return true;
+}
+
+function initialiseColorInput(input, defaultColor) {
+  if (!input) {
+    return;
+  }
+
+  if (defaultColor) {
+    input.dataset.defaultColor = defaultColor;
+    input.dataset.lastPreviewColor = defaultColor;
+  } else {
+    delete input.dataset.defaultColor;
+    delete input.dataset.lastPreviewColor;
+  }
+
+  updateColorInputPreviewFromState(input, true);
+
+  input.addEventListener('input', () => {
+    updateColorInputPreviewFromState(input, false);
+  });
+
+  const handleValidation = () => {
+    const isValid = updateColorInputPreviewFromState(input, true);
+    if (!isValid && input.dataset.fieldLabel) {
+      showConsoleMessage(`"${input.dataset.fieldLabel}" must be a valid CSS colour.`, true);
+    }
+  };
+
+  input.addEventListener('change', handleValidation);
+  input.addEventListener('blur', handleValidation);
+}
+
+function ensureIconDatalist() {
+  if (iconDatalistElement) {
+    return iconDatalistElement;
+  }
+
+  iconDatalistElement = document.createElement('datalist');
+  iconDatalistElement.id = 'icon-url-options';
+  ICON_LIBRARY.forEach((icon) => {
+    const option = document.createElement('option');
+    option.value = icon.url;
+    option.label = icon.label;
+    iconDatalistElement.appendChild(option);
+  });
+  document.body.appendChild(iconDatalistElement);
+  return iconDatalistElement;
+}
+
+function attachIconPicker(input) {
+  if (!input) {
+    return;
+  }
+
+  const datalist = ensureIconDatalist();
+  input.setAttribute('list', datalist.id);
+}
 
 const loginSection = document.getElementById('admin-login');
 const loginForm = document.getElementById('admin-login-form');
@@ -54,8 +303,19 @@ async function loadConfiguration() {
 
   const config = await response.json();
   adminCredentials = config.admin || { username: '', passwordHash: '' };
+
+  const portalBranding = (config.portal && config.portal.branding) || {};
+  const brandingClone = deepClone(portalBranding || {});
+  const brandingColors =
+    brandingClone.colors && typeof brandingClone.colors === 'object' ? brandingClone.colors : {};
+  const brandingFooter =
+    brandingClone.footer && typeof brandingClone.footer === 'object' ? brandingClone.footer : {};
+
+  brandingClone.colors = normaliseColorMap(brandingColors);
+  brandingClone.footer = brandingFooter;
+
   defaultPortalConfig = {
-    branding: (config.portal && config.portal.branding) || {},
+    branding: brandingClone,
     roles: (config.portal && config.portal.roles) || {}
   };
 }
@@ -149,7 +409,7 @@ function loadCurrentPortalConfig() {
   const currentColors = currentPortalConfig.branding.colors && typeof currentPortalConfig.branding.colors === 'object'
     ? currentPortalConfig.branding.colors
     : {};
-  currentPortalConfig.branding.colors = { ...defaultColors, ...currentColors };
+  currentPortalConfig.branding.colors = normaliseColorMap({ ...defaultColors, ...currentColors });
 
   const defaultFooter = defaultBranding.footer && typeof defaultBranding.footer === 'object' ? defaultBranding.footer : {};
   const currentFooter = currentPortalConfig.branding.footer && typeof currentPortalConfig.branding.footer === 'object'
@@ -173,6 +433,14 @@ function persistPortalConfig() {
     branding: currentPortalConfig.branding || {},
     roles: currentPortalConfig.roles || {}
   };
+  if (!payload.branding || typeof payload.branding !== 'object') {
+    payload.branding = {};
+  }
+  const colors =
+    payload.branding.colors && typeof payload.branding.colors === 'object'
+      ? payload.branding.colors
+      : {};
+  payload.branding.colors = normaliseColorMap(colors);
   localStorage.setItem(PORTAL_LINKS_STORAGE_KEY, JSON.stringify(payload));
 }
 
@@ -204,7 +472,7 @@ function renderBranding() {
     defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
       ? defaultPortalConfig.branding
       : {};
-  const defaultColors =
+  const defaultColorsRaw =
     defaultBrandingConfig.colors && typeof defaultBrandingConfig.colors === 'object'
       ? defaultBrandingConfig.colors
       : {};
@@ -212,7 +480,9 @@ function renderBranding() {
     defaultBrandingConfig.footer && typeof defaultBrandingConfig.footer === 'object'
       ? defaultBrandingConfig.footer
       : {};
-  const colors = branding.colors && typeof branding.colors === 'object' ? branding.colors : {};
+  const defaultColors = normaliseColorMap(defaultColorsRaw);
+  const colors = normaliseColorMap(branding.colors && typeof branding.colors === 'object' ? branding.colors : {});
+  currentPortalConfig.branding.colors = colors;
   const footer = branding.footer && typeof branding.footer === 'object' ? branding.footer : {};
 
   const titleLabel = document.createElement('label');
@@ -256,6 +526,17 @@ function renderBranding() {
   form.appendChild(logoLabel);
   form.appendChild(backgroundLabel);
 
+  const pageBackgroundLabel = document.createElement('label');
+  pageBackgroundLabel.textContent = 'Page background image URL';
+  const pageBackgroundInput = document.createElement('input');
+  pageBackgroundInput.type = 'url';
+  pageBackgroundInput.name = 'pageBackgroundImage';
+  pageBackgroundInput.placeholder = 'https://cdn.example.com/background.jpg';
+  pageBackgroundInput.value = branding.pageBackgroundImage || '';
+  pageBackgroundLabel.appendChild(pageBackgroundInput);
+
+  form.appendChild(pageBackgroundLabel);
+
   const logoHint = document.createElement('p');
   logoHint.className = 'branding-hint';
   logoHint.textContent = 'Use transparent PNG/SVG logos and wide landscape photos (1200×400) for the best presentation.';
@@ -268,7 +549,8 @@ function renderBranding() {
 
   const colourHint = document.createElement('p');
   colourHint.className = 'branding-hint';
-  colourHint.textContent = 'Accepts any CSS colour value (hex, rgb, hsl, etc.). Leave a field blank to use the default.';
+  colourHint.textContent =
+    'Accepts any CSS colour value (hex, rgb, hsl, etc.). Values are saved in hex format. Leave a field blank to use the default.';
   form.appendChild(colourHint);
 
   const colourGrid = document.createElement('div');
@@ -281,9 +563,16 @@ function renderBranding() {
     colorInput.type = 'text';
     colorInput.name = `color-${field.key}`;
     colorInput.value = colors[field.key] || '';
-    colorInput.placeholder = defaultColors[field.key] || field.placeholder || '';
+    const defaultValue = defaultColors[field.key] || normaliseColorValue(field.placeholder || '');
+    if (defaultValue) {
+      colorInput.placeholder = defaultValue;
+    } else if (field.placeholder) {
+      colorInput.placeholder = field.placeholder;
+    }
     colorInput.autocomplete = 'off';
     colorInput.spellcheck = false;
+    colorInput.dataset.fieldLabel = field.label;
+    initialiseColorInput(colorInput, defaultValue || '');
     colorLabel.appendChild(colorInput);
     colourGrid.appendChild(colorLabel);
   });
@@ -344,7 +633,19 @@ function renderBranding() {
   resetButton.className = 'tertiary-button';
   resetButton.textContent = 'Use default branding';
   resetButton.addEventListener('click', () => {
+    const confirmed = window.confirm('Restore all branding settings to their defaults?');
+    if (!confirmed) {
+      return;
+    }
+
     currentPortalConfig.branding = deepClone(defaultPortalConfig.branding || {});
+    if (
+      !currentPortalConfig.branding.colors ||
+      typeof currentPortalConfig.branding.colors !== 'object'
+    ) {
+      currentPortalConfig.branding.colors = {};
+    }
+    currentPortalConfig.branding.colors = normaliseColorMap(currentPortalConfig.branding.colors);
     persistPortalConfig();
     renderBranding();
     showConsoleMessage('Branding restored to default values.');
@@ -371,17 +672,37 @@ function handleBrandingSubmit(form) {
   const tagline = typeof taglineValue === 'string' ? taglineValue.trim() : '';
   const logo = (formData.get('logo') || '').toString().trim();
   const backgroundImage = (formData.get('backgroundImage') || '').toString().trim();
+  const pageBackgroundImage = (formData.get('pageBackgroundImage') || '').toString().trim();
 
   const colorOverrides = {};
-  COLOR_FIELDS.forEach((field) => {
+  for (const field of COLOR_FIELDS) {
+    const input = form.querySelector(`input[name="color-${field.key}"]`);
     const rawValue = formData.get(`color-${field.key}`);
-    if (typeof rawValue === 'string') {
-      const trimmed = rawValue.trim();
-      if (trimmed) {
-        colorOverrides[field.key] = trimmed;
-      }
+    if (typeof rawValue !== 'string') {
+      continue;
     }
-  });
+
+    const trimmed = rawValue.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    const normalised = normaliseColorValue(trimmed);
+    if (!normalised) {
+      if (input) {
+        updateColorInputPreviewFromState(input, true);
+        input.focus();
+      }
+      showConsoleMessage(`"${field.label}" must be a valid CSS colour in #rrggbb format.`, true);
+      return;
+    }
+
+    colorOverrides[field.key] = normalised;
+    if (input && normalised !== trimmed) {
+      input.value = normalised;
+      updateColorInputPreviewFromState(input, false);
+    }
+  }
 
   const defaultBrandingConfig =
     defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
@@ -389,12 +710,12 @@ function handleBrandingSubmit(form) {
       : {};
   const defaultColors =
     defaultBrandingConfig.colors && typeof defaultBrandingConfig.colors === 'object'
-      ? defaultBrandingConfig.colors
+      ? normaliseColorMap(defaultBrandingConfig.colors)
       : {};
-  const mergedColors = {
+  const mergedColors = normaliseColorMap({
     ...defaultColors,
     ...colorOverrides
-  };
+  });
 
   const footerDefaults =
     defaultBrandingConfig.footer && typeof defaultBrandingConfig.footer === 'object'
@@ -420,6 +741,7 @@ function handleBrandingSubmit(form) {
     tagline,
     logo,
     backgroundImage,
+    pageBackgroundImage,
     colors: mergedColors,
     footer: footerConfig
   };
@@ -527,7 +849,9 @@ function buildRoleSection(roleKey) {
   const iconInput = document.createElement('input');
   iconInput.type = 'url';
   iconInput.name = 'icon';
-  iconInput.placeholder = 'https://cdn.example.com/icon.svg';
+  iconInput.placeholder = 'Start typing to choose an icon or paste an image URL';
+  iconInput.autocomplete = 'off';
+  attachIconPicker(iconInput);
   iconLabel.appendChild(iconInput);
 
   const targetLabel = document.createElement('label');

@@ -61,6 +61,101 @@ let msalInstance;
 let loginRequest = {};
 let defaultPortalConfig = { branding: {}, roles: {} };
 
+let colorProbeElement = null;
+
+function getColorProbeElement() {
+  if (!colorProbeElement) {
+    colorProbeElement = document.createElement('span');
+    colorProbeElement.style.display = 'none';
+    document.body.appendChild(colorProbeElement);
+  }
+  return colorProbeElement;
+}
+
+function isValidCssColor(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  const test = document.createElement('option');
+  test.style.color = '';
+  test.style.color = value.trim();
+  return Boolean(test.style.color);
+}
+
+function componentToHex(value) {
+  const clamped = Math.min(255, Math.max(0, Math.round(Number(value))));
+  return clamped.toString(16).padStart(2, '0');
+}
+
+function normaliseColorValue(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed || !isValidCssColor(trimmed)) {
+    return null;
+  }
+
+  const probe = getColorProbeElement();
+  const previous = probe.style.color;
+  probe.style.color = trimmed;
+  const computed = window.getComputedStyle(probe).color;
+  probe.style.color = previous;
+
+  const match = computed.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.length < 3) {
+    return null;
+  }
+
+  const [rRaw, gRaw, bRaw, aRaw] = parts;
+  const r = Number(rRaw);
+  const g = Number(gRaw);
+  const b = Number(bRaw);
+
+  if ([r, g, b].some((component) => Number.isNaN(component))) {
+    return null;
+  }
+
+  const alpha = Number.isNaN(Number(aRaw)) ? 1 : Number(aRaw);
+  const clampedAlpha = Math.min(1, Math.max(0, alpha));
+
+  const hexBase = `#${componentToHex(r)}${componentToHex(g)}${componentToHex(b)}`;
+  if (clampedAlpha < 1) {
+    const alphaHex = componentToHex(clampedAlpha * 255);
+    if (alphaHex !== 'ff') {
+      return `${hexBase}${alphaHex}`.toLowerCase();
+    }
+  }
+
+  return hexBase.toLowerCase();
+}
+
+function normaliseColorMap(map = {}) {
+  const normalised = {};
+  if (!map || typeof map !== 'object') {
+    return normalised;
+  }
+
+  Object.entries(map).forEach(([key, value]) => {
+    if (typeof value !== 'string') {
+      return;
+    }
+    const normalisedValue = normaliseColorValue(value);
+    if (normalisedValue) {
+      normalised[key] = normalisedValue;
+    }
+  });
+
+  return normalised;
+}
+
 function resolveColorToRgbComponents(value) {
   if (!value || !document || !document.body) {
     return null;
@@ -92,8 +187,10 @@ function applyColorVariables(colors = {}) {
     return;
   }
 
+  const normalisedColors = normaliseColorMap(colors);
+
   Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
-    const value = colors[key];
+    const value = normalisedColors[key];
     if (value) {
       root.style.setProperty(variable, value);
     } else {
@@ -101,19 +198,22 @@ function applyColorVariables(colors = {}) {
     }
   });
 
-  const primarySource = colors.primary || window.getComputedStyle(root).getPropertyValue('--color-primary');
+  const primarySource =
+    normalisedColors.primary || window.getComputedStyle(root).getPropertyValue('--color-primary');
   const primaryRgb = resolveColorToRgbComponents(primarySource.trim());
   if (primaryRgb) {
     root.style.setProperty('--color-primary-rgb', primaryRgb);
   }
 
-  const textSource = colors.text || window.getComputedStyle(root).getPropertyValue('--color-text');
+  const textSource =
+    normalisedColors.text || window.getComputedStyle(root).getPropertyValue('--color-text');
   const textRgb = resolveColorToRgbComponents(textSource.trim());
   if (textRgb) {
     root.style.setProperty('--color-text-rgb', textRgb);
   }
 
-  const mutedSource = colors.muted || window.getComputedStyle(root).getPropertyValue('--color-muted');
+  const mutedSource =
+    normalisedColors.muted || window.getComputedStyle(root).getPropertyValue('--color-muted');
   const mutedRgb = resolveColorToRgbComponents(mutedSource.trim());
   if (mutedRgb) {
     root.style.setProperty('--color-muted-rgb', mutedRgb);
@@ -249,6 +349,10 @@ function getStoredPortalConfig() {
     }
 
     const branding = parsed.branding && typeof parsed.branding === 'object' ? parsed.branding : {};
+    if (!branding.colors || typeof branding.colors !== 'object') {
+      branding.colors = {};
+    }
+    branding.colors = normaliseColorMap(branding.colors);
     const roles = parsed.roles && typeof parsed.roles === 'object' ? parsed.roles : {};
 
     return { branding, roles };
@@ -278,8 +382,12 @@ function getPortalBranding() {
     : {};
   const storedBranding = stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
 
-  const defaultColors = defaultBranding.colors && typeof defaultBranding.colors === 'object' ? defaultBranding.colors : {};
-  const storedColors = storedBranding.colors && typeof storedBranding.colors === 'object' ? storedBranding.colors : {};
+  const defaultColors = normaliseColorMap(
+    defaultBranding.colors && typeof defaultBranding.colors === 'object' ? defaultBranding.colors : {}
+  );
+  const storedColors = normaliseColorMap(
+    storedBranding.colors && typeof storedBranding.colors === 'object' ? storedBranding.colors : {}
+  );
 
   const defaultFooter = defaultBranding.footer && typeof defaultBranding.footer === 'object' ? defaultBranding.footer : {};
   const storedFooter = storedBranding.footer && typeof storedBranding.footer === 'object' ? storedBranding.footer : {};
@@ -287,7 +395,7 @@ function getPortalBranding() {
   return {
     ...defaultBranding,
     ...storedBranding,
-    colors: { ...defaultColors, ...storedColors },
+    colors: normaliseColorMap({ ...defaultColors, ...storedColors }),
     footer: { ...defaultFooter, ...storedFooter }
   };
 }
@@ -297,7 +405,21 @@ function applyBranding() {
   const stored = getStoredPortalConfig();
   const storedBranding = stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
 
-  applyColorVariables(branding.colors || {});
+  const normalisedColors = normaliseColorMap(branding.colors || {});
+  branding.colors = normalisedColors;
+  applyColorVariables(normalisedColors);
+
+  const pageBackgroundUrl =
+    typeof branding.pageBackgroundImage === 'string' ? branding.pageBackgroundImage.trim() : '';
+  const root = document.documentElement;
+  if (root) {
+    if (pageBackgroundUrl) {
+      const cssUrl = `url(${JSON.stringify(pageBackgroundUrl)})`;
+      root.style.setProperty('--page-background-image', cssUrl);
+    } else {
+      root.style.setProperty('--page-background-image', 'none');
+    }
+  }
 
   if (portalTitleElement) {
     const title = branding.title || initialPortalTitle;
@@ -545,8 +667,22 @@ fetch('config.json')
       throw new Error('Missing Azure B2C configuration.');
     }
 
+    const portalBranding = (config.portal && config.portal.branding) || {};
+    const brandingClone = { ...portalBranding };
+    const brandingColors =
+      portalBranding.colors && typeof portalBranding.colors === 'object'
+        ? normaliseColorMap(portalBranding.colors)
+        : {};
+    const brandingFooter =
+      portalBranding.footer && typeof portalBranding.footer === 'object'
+        ? { ...portalBranding.footer }
+        : {};
+
+    brandingClone.colors = brandingColors;
+    brandingClone.footer = brandingFooter;
+
     defaultPortalConfig = {
-      branding: (config.portal && config.portal.branding) || {},
+      branding: brandingClone,
       roles: (config.portal && config.portal.roles) || {}
     };
     applyBranding();
