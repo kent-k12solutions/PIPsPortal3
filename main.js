@@ -466,6 +466,7 @@ function updateCopyright(title) {
   portalCopyrightElement.textContent = `© ${year} ${safeTitle}`;
 }
 
+
 function setStatus(message) {
   if (!statusElement) {
     return;
@@ -576,7 +577,7 @@ function getStoredPortalConfig() {
 
 function getPortalLinksForRole(roleKey) {
   const stored = getStoredPortalConfig();
-  if (stored && Array.isArray(stored.roles?.[roleKey])) {
+  if (stored && stored.roles && Array.isArray(stored.roles[roleKey])) {
     return stored.roles[roleKey];
   }
 
@@ -683,11 +684,15 @@ function applyBranding() {
     if (branding.logo) {
       portalLogoElement.src = branding.logo;
       portalLogoElement.classList.remove('hidden');
-      brandLogoWrapper?.classList.remove('hidden');
+      if (brandLogoWrapper) {
+        brandLogoWrapper.classList.remove('hidden');
+      }
     } else {
       portalLogoElement.removeAttribute('src');
       portalLogoElement.classList.add('hidden');
-      brandLogoWrapper?.classList.add('hidden');
+      if (brandLogoWrapper) {
+        brandLogoWrapper.classList.add('hidden');
+      }
     }
   }
 
@@ -767,6 +772,7 @@ function showAccountInfo(account) {
     accountRoleElement.textContent = rolesDisplay ? `Role: ${rolesDisplay}` : 'Role: Not assigned';
 
     accountSection.classList.remove('hidden');
+
   } else {
     if (accountNameElement) {
       accountNameElement.textContent = '';
@@ -783,12 +789,21 @@ function showAccountInfo(account) {
   }
 
   if (account) {
-    loginButton?.classList.add('hidden');
-    logoutButton?.classList.remove('hidden');
+    if (loginButton) {
+      loginButton.classList.add('hidden');
+    }
+    if (logoutButton) {
+      logoutButton.classList.remove('hidden');
+    }
     logoutButton.disabled = false;
   } else {
-    loginButton?.classList.remove('hidden');
-    logoutButton?.classList.add('hidden');
+    if (loginButton) {
+      loginButton.classList.remove('hidden');
+    }
+    if (logoutButton) {
+      logoutButton.classList.add('hidden');
+    }
+
     logoutButton.disabled = false;
   }
 
