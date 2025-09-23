@@ -34,7 +34,16 @@ const PortalColorUtils =
       }
 
       const trimmed = value.trim();
-      if (!trimmed || !isValidCssColor(trimmed)) {
+      if (!trimmed) {
+        return '';
+      }
+
+      const lower = trimmed.toLowerCase();
+      if (lower === 'transparent') {
+        return 'transparent';
+      }
+
+      if (!isValidCssColor(trimmed)) {
         return null;
       }
 
@@ -88,7 +97,7 @@ const PortalColorUtils =
           return;
         }
         const normalisedValue = normaliseColorValue(value);
-        if (normalisedValue) {
+        if (normalisedValue !== null && normalisedValue !== undefined) {
           normalised[key] = normalisedValue;
         }
       });
@@ -291,11 +300,17 @@ function applyColorVariables(colors = {}) {
 
   Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
     const value = normalisedColors[key];
-    if (value) {
-      root.style.setProperty(variable, value);
-    } else {
+    if (value === undefined) {
       root.style.removeProperty(variable);
+      return;
     }
+
+    if (value === '' || (typeof value === 'string' && value.toLowerCase() === 'transparent')) {
+      root.style.setProperty(variable, 'transparent');
+      return;
+    }
+
+    root.style.setProperty(variable, value);
   });
 
   const primarySource =

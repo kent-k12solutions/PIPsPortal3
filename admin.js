@@ -46,7 +46,16 @@ const PortalColorUtils =
       }
 
       const trimmed = value.trim();
-      if (!trimmed || !isValidCssColor(trimmed)) {
+      if (!trimmed) {
+        return '';
+      }
+
+      const lower = trimmed.toLowerCase();
+      if (lower === 'transparent') {
+        return 'transparent';
+      }
+
+      if (!isValidCssColor(trimmed)) {
         return null;
       }
 
@@ -100,7 +109,7 @@ const PortalColorUtils =
           return;
         }
         const normalisedValue = normaliseColorValue(value);
-        if (normalisedValue) {
+        if (normalisedValue !== null && normalisedValue !== undefined) {
           normalised[key] = normalisedValue;
         }
       });
@@ -311,11 +320,11 @@ function updateColorInputPreviewFromState(input, markInvalid = false, commitValu
     return true;
   }
 
-  const raw = input.value.trim();
+  const raw = typeof input.value === 'string' ? input.value.trim() : '';
   if (!raw) {
     input.classList.remove('color-input--invalid');
-    const fallback = input.dataset.defaultColor || '';
-    setColorInputPreview(input, fallback);
+    input.dataset.lastPreviewColor = 'transparent';
+    setColorInputPreview(input, 'transparent');
     return true;
   }
 
@@ -436,11 +445,17 @@ function applyColorVariablesToDocument(colors = {}) {
 
   Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
     const value = normalisedColors[key];
-    if (value) {
-      root.style.setProperty(variable, value);
-    } else {
+    if (value === undefined) {
       root.style.removeProperty(variable);
+      return;
     }
+
+    if (value === '' || (typeof value === 'string' && value.toLowerCase() === 'transparent')) {
+      root.style.setProperty(variable, 'transparent');
+      return;
+    }
+
+    root.style.setProperty(variable, value);
   });
 
   const primarySource =
@@ -1054,6 +1069,13 @@ function handleBrandingSubmit(form) {
 
     const trimmed = rawValue.trim();
     if (!trimmed) {
+      colorOverrides[field.key] = '';
+      if (input) {
+        input.value = '';
+        input.dataset.lastPreviewColor = 'transparent';
+        setColorInputPreview(input, 'transparent');
+        input.classList.remove('color-input--invalid');
+      }
       continue;
     }
 
@@ -1063,7 +1085,7 @@ function handleBrandingSubmit(form) {
         updateColorInputPreviewFromState(input, true);
         input.focus();
       }
-      showConsoleMessage(`"${field.label}" must be a valid CSS colour in #rrggbb format.`, true);
+      showConsoleMessage(`"${field.label}" must be blank or a valid CSS colour.`, true);
       return;
     }
 
