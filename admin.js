@@ -173,7 +173,13 @@ const PortalColorUtils =
     };
   })());
 
-const { normaliseColorValue, normaliseColorMap, parseHexColor, getReadableTextColor } = PortalColorUtils;
+const {
+  normaliseColorValue,
+  normaliseColorMap,
+  parseHexColor,
+  getReadableTextColor,
+  resolveColorToRgbComponents
+} = PortalColorUtils;
 
 const PortalAssetUtils =
   window.PortalAssetUtils ||
@@ -229,6 +235,25 @@ const PortalAssetUtils =
 
 const { resolveUrl: resolvePortalAssetUrl } = PortalAssetUtils;
 
+const COLOR_VARIABLE_MAP = {
+  background: '--color-background',
+  surface: '--color-surface',
+  surfaceSubtle: '--color-surface-subtle',
+  primary: '--color-primary',
+  primaryDark: '--color-primary-dark',
+  primaryAccent: '--color-primary-accent',
+  text: '--color-text',
+  muted: '--color-muted',
+  border: '--color-border',
+  headerOverlay: '--color-header-overlay',
+  sessionButtonBackground: '--color-session-button-background',
+  emptyStateBackground: '--color-empty-state-background',
+  tertiaryButtonBackground: '--color-tertiary-background',
+  danger: '--color-danger',
+  footerBackground: '--color-footer-background',
+  footerText: '--color-footer-text',
+  footerLink: '--color-footer-link'
+};
 
 const COLOR_FIELDS = [
   { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
@@ -381,6 +406,17 @@ const consoleStatus = document.getElementById('admin-console-status');
 const logoutButton = document.getElementById('admin-logout');
 const brandingContainer = document.getElementById('branding-container');
 const rolesContainer = document.getElementById('roles-container');
+const adminSiteHeader = document.getElementById('admin-site-header');
+const adminBrandLogoWrapper = document.getElementById('admin-brand-logo');
+const adminPortalLogoElement = document.getElementById('admin-portal-logo');
+const adminPortalNameElement = document.getElementById('admin-portal-name');
+const adminPortalTaglineElement = document.getElementById('admin-portal-tagline');
+const adminFooterElement = document.getElementById('admin-site-footer');
+const adminPrivacyPolicyLinkElement = document.getElementById('admin-privacy-policy-link');
+const adminCopyrightElement = document.getElementById('admin-copyright');
+
+const initialAdminPortalName = adminPortalNameElement ? adminPortalNameElement.textContent : '';
+const initialAdminPortalTagline = adminPortalTaglineElement ? adminPortalTaglineElement.textContent : '';
 
 let adminCredentials = { username: '', passwordHash: '' };
 let defaultPortalConfig = { branding: {}, roles: {} };
@@ -388,6 +424,214 @@ let currentPortalConfig = { branding: {}, roles: {} };
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function applyColorVariablesToDocument(colors = {}) {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  const normalisedColors = normaliseColorMap(colors);
+
+  Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
+    const value = normalisedColors[key];
+    if (value) {
+      root.style.setProperty(variable, value);
+    } else {
+      root.style.removeProperty(variable);
+    }
+  });
+
+  const primarySource =
+    normalisedColors.primary || window.getComputedStyle(root).getPropertyValue('--color-primary');
+  const primaryRgb = resolveColorToRgbComponents(primarySource.trim());
+  if (primaryRgb) {
+    root.style.setProperty('--color-primary-rgb', primaryRgb);
+  }
+
+  const textSource =
+    normalisedColors.text || window.getComputedStyle(root).getPropertyValue('--color-text');
+  const textRgb = resolveColorToRgbComponents(textSource.trim());
+  if (textRgb) {
+    root.style.setProperty('--color-text-rgb', textRgb);
+  }
+
+  const mutedSource =
+    normalisedColors.muted || window.getComputedStyle(root).getPropertyValue('--color-muted');
+  const mutedRgb = resolveColorToRgbComponents(mutedSource.trim());
+  if (mutedRgb) {
+    root.style.setProperty('--color-muted-rgb', mutedRgb);
+  }
+}
+
+function applyAdminFooterSettings(footerConfig = {}) {
+  if (!adminFooterElement) {
+    return;
+  }
+
+  if (adminPrivacyPolicyLinkElement) {
+    const label =
+      typeof footerConfig.privacyPolicyLabel === 'string'
+        ? footerConfig.privacyPolicyLabel.trim()
+        : '';
+    const url =
+      typeof footerConfig.privacyPolicyUrl === 'string'
+        ? footerConfig.privacyPolicyUrl.trim()
+        : '';
+
+    const linkText = label || 'Privacy policy';
+    adminPrivacyPolicyLinkElement.textContent = linkText;
+
+    if (url) {
+      adminPrivacyPolicyLinkElement.href = url;
+      adminPrivacyPolicyLinkElement.classList.remove('hidden');
+      adminPrivacyPolicyLinkElement.setAttribute('target', '_blank');
+      adminPrivacyPolicyLinkElement.setAttribute('rel', 'noopener noreferrer');
+    } else {
+      adminPrivacyPolicyLinkElement.href = '#';
+      adminPrivacyPolicyLinkElement.classList.add('hidden');
+      adminPrivacyPolicyLinkElement.removeAttribute('target');
+      adminPrivacyPolicyLinkElement.removeAttribute('rel');
+    }
+  }
+}
+
+function updateAdminCopyright(title) {
+  if (!adminCopyrightElement) {
+    return;
+  }
+
+  const currentYear = new Date().getFullYear();
+  const trimmedTitle = typeof title === 'string' ? title.trim() : '';
+  const portalTitle = trimmedTitle || initialAdminPortalName || 'PIPs Portal';
+  adminCopyrightElement.textContent = `© ${currentYear} ${portalTitle}`;
+}
+
+function applyAdminBrandingTheme(branding = {}, options = {}) {
+  const colors = normaliseColorMap(branding.colors || {});
+  applyColorVariablesToDocument(colors);
+
+  const root = document.documentElement;
+  if (root) {
+    const pageBackgroundUrl =
+      typeof branding.pageBackgroundImage === 'string' ? branding.pageBackgroundImage.trim() : '';
+    if (pageBackgroundUrl) {
+      const cssUrl = `url(${JSON.stringify(pageBackgroundUrl)})`;
+      root.style.setProperty('--page-background-image', cssUrl);
+    } else {
+      root.style.setProperty('--page-background-image', 'none');
+    }
+  }
+
+  const title = typeof branding.title === 'string' ? branding.title.trim() : '';
+  const resolvedTitle = title || initialAdminPortalName || 'PIPs Portal';
+
+  if (adminPortalNameElement) {
+    adminPortalNameElement.textContent = resolvedTitle;
+  }
+
+  if (adminPortalTaglineElement) {
+    const tagline = typeof branding.tagline === 'string' ? branding.tagline.trim() : '';
+    const overrideExists = Boolean(options && options.taglineOverrideExists);
+    const overrideTagline =
+      options && typeof options.overrideTagline === 'string' ? options.overrideTagline.trim() : '';
+
+    if (overrideExists && !overrideTagline) {
+      adminPortalTaglineElement.textContent = '';
+      adminPortalTaglineElement.classList.add('hidden');
+    } else if (tagline) {
+      adminPortalTaglineElement.textContent = tagline;
+      adminPortalTaglineElement.classList.remove('hidden');
+    } else if (initialAdminPortalTagline) {
+      adminPortalTaglineElement.textContent = initialAdminPortalTagline;
+      adminPortalTaglineElement.classList.remove('hidden');
+    } else {
+      adminPortalTaglineElement.textContent = '';
+      adminPortalTaglineElement.classList.add('hidden');
+    }
+  }
+
+  if (adminPortalLogoElement) {
+    if (branding.logo) {
+      adminPortalLogoElement.src = branding.logo;
+      adminPortalLogoElement.classList.remove('hidden');
+      if (adminBrandLogoWrapper) {
+        adminBrandLogoWrapper.classList.remove('hidden');
+      }
+    } else {
+      adminPortalLogoElement.removeAttribute('src');
+      adminPortalLogoElement.classList.add('hidden');
+      if (adminBrandLogoWrapper) {
+        adminBrandLogoWrapper.classList.add('hidden');
+      }
+    }
+  }
+
+  if (adminSiteHeader) {
+    if (branding.backgroundImage) {
+      adminSiteHeader.style.setProperty('--header-background-image', `url(${branding.backgroundImage})`);
+    } else {
+      adminSiteHeader.style.removeProperty('--header-background-image');
+    }
+  }
+
+  applyAdminFooterSettings(branding.footer || {});
+  updateAdminCopyright(resolvedTitle);
+}
+
+function refreshAdminPreview() {
+  const branding =
+    currentPortalConfig && currentPortalConfig.branding && typeof currentPortalConfig.branding === 'object'
+      ? currentPortalConfig.branding
+      : {};
+  const fallback =
+    defaultPortalConfig && defaultPortalConfig.branding && typeof defaultPortalConfig.branding === 'object'
+      ? defaultPortalConfig.branding
+      : {};
+  const mergedColors = normaliseColorMap({
+    ...((fallback.colors && typeof fallback.colors === 'object') ? fallback.colors : {}),
+    ...((branding.colors && typeof branding.colors === 'object') ? branding.colors : {})
+  });
+
+  const footerDefaults = fallback.footer && typeof fallback.footer === 'object' ? fallback.footer : {};
+  const footerOverrides = branding.footer && typeof branding.footer === 'object' ? branding.footer : {};
+
+  const previewBranding = {
+    ...fallback,
+    ...branding,
+    colors: mergedColors,
+    footer: { ...footerDefaults, ...footerOverrides }
+  };
+
+  const stored = getStoredPortalConfig();
+  const storedBranding =
+    stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
+  const defaultHasTagline = Object.prototype.hasOwnProperty.call(fallback, 'tagline');
+  const defaultTaglineValue = defaultHasTagline ? fallback.tagline : undefined;
+  const storedHasTagline = Object.prototype.hasOwnProperty.call(storedBranding, 'tagline');
+  let taglineOverrideExists = false;
+  let overrideTagline = undefined;
+
+  if (storedHasTagline) {
+    overrideTagline = storedBranding.tagline;
+    if (!defaultHasTagline) {
+      taglineOverrideExists = true;
+    } else {
+      const storedTrimmed =
+        typeof overrideTagline === 'string' ? overrideTagline.trim() : overrideTagline;
+      const defaultTrimmed =
+        typeof defaultTaglineValue === 'string' ? defaultTaglineValue.trim() : defaultTaglineValue;
+      if (storedTrimmed !== defaultTrimmed) {
+        taglineOverrideExists = true;
+      }
+    }
+  }
+
+  applyAdminBrandingTheme(previewBranding, {
+    taglineOverrideExists,
+    overrideTagline
+  });
 }
 
 async function loadConfiguration() {
@@ -787,6 +1031,7 @@ function renderBranding() {
 
   section.appendChild(form);
   brandingContainer.appendChild(section);
+  refreshAdminPreview();
 }
 
 function handleBrandingSubmit(form) {
@@ -1195,6 +1440,9 @@ async function initializeAdmin() {
     showLoginMessage('Unable to load configuration. Check the console for details.', true);
     return;
   }
+
+  loadCurrentPortalConfig();
+  refreshAdminPreview();
 
   if (isAdminAuthenticated()) {
     enterConsole();

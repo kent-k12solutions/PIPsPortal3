@@ -613,7 +613,7 @@ function renderPortal(roleKey) {
   portalDescriptionElement.textContent =
     roleKey === 'anonymous'
       ? 'Sign in to access additional personalized tools and experiences.'
-      : 'Choose a tile below to launch the resources curated for your role.';
+      : '';
 
   linksContainer.innerHTML = '';
   const links = getPortalLinksForRole(roleKey);
@@ -668,7 +668,6 @@ function showAccountInfo(account) {
     accountRoleElement.textContent = rolesDisplay ? `Role: ${rolesDisplay}` : 'Role: Not assigned';
 
     accountSection.classList.remove('hidden');
-
   } else {
     if (accountNameElement) {
       accountNameElement.textContent = '';
@@ -699,7 +698,6 @@ function showAccountInfo(account) {
     if (logoutButton) {
       logoutButton.classList.add('hidden');
     }
-
     logoutButton.disabled = false;
   }
 
