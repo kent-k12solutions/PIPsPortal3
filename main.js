@@ -161,16 +161,51 @@ const PortalColorUtils =
       return brightness > 155 ? '#111827' : '#ffffff';
     }
 
+    function combineColorWithAlpha(value, alpha) {
+      if (typeof value !== 'string') {
+        return null;
+      }
+
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return '';
+      }
+
+      if (trimmed.toLowerCase() === 'transparent') {
+        return 'transparent';
+      }
+
+      const numericAlpha = typeof alpha === 'string' ? Number(alpha) : alpha;
+      if (typeof numericAlpha !== 'number' || Number.isNaN(numericAlpha)) {
+        return trimmed;
+      }
+
+      const clamped = Math.min(1, Math.max(0, numericAlpha));
+      const rgb = resolveColorToRgbComponents(trimmed);
+      if (!rgb) {
+        return trimmed;
+      }
+
+      const alphaString = clamped === 1 ? '1' : clamped.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+      return `rgba(${rgb}, ${alphaString})`;
+    }
+
     return {
       normaliseColorValue,
       normaliseColorMap,
       resolveColorToRgbComponents,
       parseHexColor,
-      getReadableTextColor
+      getReadableTextColor,
+      combineColorWithAlpha
     };
   })());
 
-const { normaliseColorValue, normaliseColorMap, resolveColorToRgbComponents } = PortalColorUtils;
+const {
+  normaliseColorValue,
+  normaliseColorMap,
+  resolveColorToRgbComponents,
+  combineColorWithAlpha
+} = PortalColorUtils;
 
 const PortalAssetUtils =
   window.PortalAssetUtils ||
@@ -285,6 +320,26 @@ const COLOR_VARIABLE_MAP = {
   footerLink: '--color-footer-link'
 };
 
+const TRANSPARENCY_TARGETS = {
+  panel: {
+    cssVar: '--color-surface',
+    colorKey: 'surface'
+  },
+  header: {
+    cssVar: '--color-header-surface',
+    colorKey: 'surface',
+    fallbackVar: '--color-surface'
+  },
+  footer: {
+    cssVar: '--color-footer-background',
+    colorKey: 'footerBackground'
+  },
+  button: {
+    cssVar: '--color-session-button-background',
+    colorKey: 'sessionButtonBackground'
+  }
+};
+
 let msalInstance;
 let loginRequest = {};
 let defaultPortalConfig = { branding: {}, roles: {} };
@@ -333,6 +388,95 @@ function applyColorVariables(colors = {}) {
   if (mutedRgb) {
     root.style.setProperty('--color-muted-rgb', mutedRgb);
   }
+}
+
+function normaliseTransparencyMap(map = {}) {
+  const normalised = {};
+  if (!map || typeof map !== 'object') {
+    return normalised;
+  }
+
+  Object.entries(map).forEach(([key, value]) => {
+    const numericValue = typeof value === 'string' ? Number(value) : value;
+    if (typeof numericValue !== 'number' || Number.isNaN(numericValue)) {
+      return;
+    }
+
+    const clamped = Math.min(1, Math.max(0, numericValue));
+    normalised[key] = Number(clamped.toFixed(3));
+  });
+
+  return normalised;
+}
+
+function applyTransparencyVariables(colors = {}, transparency = {}) {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  const transparencyMap = normaliseTransparencyMap(transparency);
+  const computedStyle = window.getComputedStyle(root);
+
+  Object.entries(TRANSPARENCY_TARGETS).forEach(([key, target]) => {
+    const { cssVar, colorKey, fallbackVar } = target;
+    const opacity = transparencyMap[key];
+    const hasColorOverride = colors && Object.prototype.hasOwnProperty.call(colors, colorKey);
+
+    if (hasColorOverride) {
+      const overrideValue = colors[colorKey];
+      if (
+        overrideValue === '' ||
+        (typeof overrideValue === 'string' && overrideValue.trim().toLowerCase() === 'transparent')
+      ) {
+        root.style.setProperty(cssVar, 'transparent');
+        return;
+      }
+    }
+
+    if (opacity === undefined) {
+      if (!hasColorOverride && cssVar === '--color-header-surface') {
+        root.style.removeProperty(cssVar);
+      }
+      return;
+    }
+
+    let baseColor = '';
+    if (hasColorOverride) {
+      baseColor = colors[colorKey];
+    }
+
+    if (!baseColor && fallbackVar) {
+      baseColor = computedStyle.getPropertyValue(fallbackVar).trim();
+    }
+
+    if (!baseColor) {
+      baseColor = computedStyle.getPropertyValue(cssVar).trim();
+    }
+
+    if (!baseColor) {
+      if (cssVar === '--color-header-surface') {
+        root.style.removeProperty(cssVar);
+      }
+      return;
+    }
+
+    const trimmed = typeof baseColor === 'string' ? baseColor.trim() : '';
+    if (!trimmed) {
+      root.style.setProperty(cssVar, 'transparent');
+      return;
+    }
+
+    if (trimmed.toLowerCase() === 'transparent') {
+      root.style.setProperty(cssVar, 'transparent');
+      return;
+    }
+
+    const result = combineColorWithAlpha(trimmed, opacity);
+    if (result) {
+      root.style.setProperty(cssVar, result);
+    }
+  });
 }
 
 function applyFooterSettings(footerConfig = {}) {
@@ -521,11 +665,23 @@ function getPortalBranding() {
   const storedShowAccountDetails =
     typeof storedBranding.showAccountDetails === 'boolean' ? storedBranding.showAccountDetails : undefined;
 
+  const defaultTransparency = normaliseTransparencyMap(
+    defaultBranding.transparency && typeof defaultBranding.transparency === 'object'
+      ? defaultBranding.transparency
+      : {}
+  );
+  const storedTransparency = normaliseTransparencyMap(
+    storedBranding.transparency && typeof storedBranding.transparency === 'object'
+      ? storedBranding.transparency
+      : {}
+  );
+
   return {
     ...defaultBranding,
     ...storedBranding,
     colors: normaliseColorMap({ ...defaultColors, ...storedColors }),
     footer: { ...defaultFooter, ...storedFooter },
+    transparency: { ...defaultTransparency, ...storedTransparency },
     showAccountDetails:
       typeof storedShowAccountDetails === 'boolean' ? storedShowAccountDetails : defaultShowAccountDetails
   };
@@ -539,6 +695,10 @@ function applyBranding() {
   const normalisedColors = normaliseColorMap(branding.colors || {});
   branding.colors = normalisedColors;
   applyColorVariables(normalisedColors);
+
+  const transparencySettings = normaliseTransparencyMap(branding.transparency || {});
+  branding.transparency = transparencySettings;
+  applyTransparencyVariables(normalisedColors, transparencySettings);
 
   const showAccountPreference =
     typeof branding.showAccountDetails === 'boolean'

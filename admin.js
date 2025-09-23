@@ -173,12 +173,42 @@ const PortalColorUtils =
       return brightness > 155 ? '#111827' : '#ffffff';
     }
 
+    function combineColorWithAlpha(value, alpha) {
+      if (typeof value !== 'string') {
+        return null;
+      }
+
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return '';
+      }
+
+      if (trimmed.toLowerCase() === 'transparent') {
+        return 'transparent';
+      }
+
+      const numericAlpha = typeof alpha === 'string' ? Number(alpha) : alpha;
+      if (typeof numericAlpha !== 'number' || Number.isNaN(numericAlpha)) {
+        return trimmed;
+      }
+
+      const clamped = Math.min(1, Math.max(0, numericAlpha));
+      const rgb = resolveColorToRgbComponents(trimmed);
+      if (!rgb) {
+        return trimmed;
+      }
+
+      const alphaString = clamped === 1 ? '1' : clamped.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+      return `rgba(${rgb}, ${alphaString})`;
+    }
+
     return {
       normaliseColorValue,
       normaliseColorMap,
       resolveColorToRgbComponents,
       parseHexColor,
-      getReadableTextColor
+      getReadableTextColor,
+      combineColorWithAlpha
     };
   })());
 
@@ -187,7 +217,8 @@ const {
   normaliseColorMap,
   parseHexColor,
   getReadableTextColor,
-  resolveColorToRgbComponents
+  resolveColorToRgbComponents,
+  combineColorWithAlpha
 } = PortalColorUtils;
 
 const PortalAssetUtils =
@@ -264,6 +295,26 @@ const COLOR_VARIABLE_MAP = {
   footerLink: '--color-footer-link'
 };
 
+const TRANSPARENCY_TARGETS = {
+  panel: {
+    cssVar: '--color-surface',
+    colorKey: 'surface'
+  },
+  header: {
+    cssVar: '--color-header-surface',
+    colorKey: 'surface',
+    fallbackVar: '--color-surface'
+  },
+  footer: {
+    cssVar: '--color-footer-background',
+    colorKey: 'footerBackground'
+  },
+  button: {
+    cssVar: '--color-session-button-background',
+    colorKey: 'sessionButtonBackground'
+  }
+};
+
 const COLOR_FIELDS = [
   { key: 'background', label: 'Page background colour', placeholder: '#f5f7fb' },
   { key: 'surface', label: 'Main surface colour', placeholder: '#ffffff' },
@@ -275,13 +326,20 @@ const COLOR_FIELDS = [
   { key: 'muted', label: 'Muted text colour', placeholder: '#6b7280' },
   { key: 'border', label: 'Border colour', placeholder: '#e5e7eb' },
   { key: 'headerOverlay', label: 'Header overlay colour', placeholder: '#ffffffd9' },
-  { key: 'sessionButtonBackground', label: 'Session button background', placeholder: '#ffffffd9' },
+  { key: 'sessionButtonBackground', label: 'Button background colour', placeholder: '#ffffffd9' },
   { key: 'emptyStateBackground', label: 'Empty state background', placeholder: '#6b72801f' },
   { key: 'tertiaryButtonBackground', label: 'Secondary surface colour', placeholder: '#ffffff' },
   { key: 'danger', label: 'Danger colour', placeholder: '#dc2626' },
   { key: 'footerBackground', label: 'Footer background colour', placeholder: '#ffffff' },
   { key: 'footerText', label: 'Footer text colour', placeholder: '#6b7280' },
   { key: 'footerLink', label: 'Footer link colour', placeholder: '#1d4ed8' }
+];
+
+const TRANSPARENCY_FIELDS = [
+  { key: 'panel', label: 'Link grid glass opacity', default: 0.8 },
+  { key: 'header', label: 'Header glass opacity', default: 0.72 },
+  { key: 'footer', label: 'Footer glass opacity', default: 0.65 },
+  { key: 'button', label: 'Button background opacity', default: 0.75 }
 ];
 
 const ICON_LIBRARY = [
@@ -480,6 +538,95 @@ function applyColorVariablesToDocument(colors = {}) {
   }
 }
 
+function normaliseTransparencyMap(map = {}) {
+  const normalised = {};
+  if (!map || typeof map !== 'object') {
+    return normalised;
+  }
+
+  Object.entries(map).forEach(([key, value]) => {
+    const numericValue = typeof value === 'string' ? Number(value) : value;
+    if (typeof numericValue !== 'number' || Number.isNaN(numericValue)) {
+      return;
+    }
+
+    const clamped = Math.min(1, Math.max(0, numericValue));
+    normalised[key] = Number(clamped.toFixed(3));
+  });
+
+  return normalised;
+}
+
+function applyTransparencyVariablesToDocument(colors = {}, transparency = {}) {
+  const root = document.documentElement;
+  if (!root) {
+    return;
+  }
+
+  const transparencyMap = normaliseTransparencyMap(transparency);
+  const computedStyle = window.getComputedStyle(root);
+
+  Object.entries(TRANSPARENCY_TARGETS).forEach(([key, target]) => {
+    const { cssVar, colorKey, fallbackVar } = target;
+    const opacity = transparencyMap[key];
+    const hasColorOverride = colors && Object.prototype.hasOwnProperty.call(colors, colorKey);
+
+    if (hasColorOverride) {
+      const overrideValue = colors[colorKey];
+      if (
+        overrideValue === '' ||
+        (typeof overrideValue === 'string' && overrideValue.trim().toLowerCase() === 'transparent')
+      ) {
+        root.style.setProperty(cssVar, 'transparent');
+        return;
+      }
+    }
+
+    if (opacity === undefined) {
+      if (!hasColorOverride && cssVar === '--color-header-surface') {
+        root.style.removeProperty(cssVar);
+      }
+      return;
+    }
+
+    let baseColor = '';
+    if (hasColorOverride) {
+      baseColor = colors[colorKey];
+    }
+
+    if (!baseColor && fallbackVar) {
+      baseColor = computedStyle.getPropertyValue(fallbackVar).trim();
+    }
+
+    if (!baseColor) {
+      baseColor = computedStyle.getPropertyValue(cssVar).trim();
+    }
+
+    if (!baseColor) {
+      if (cssVar === '--color-header-surface') {
+        root.style.removeProperty(cssVar);
+      }
+      return;
+    }
+
+    const trimmed = typeof baseColor === 'string' ? baseColor.trim() : '';
+    if (!trimmed) {
+      root.style.setProperty(cssVar, 'transparent');
+      return;
+    }
+
+    if (trimmed.toLowerCase() === 'transparent') {
+      root.style.setProperty(cssVar, 'transparent');
+      return;
+    }
+
+    const result = combineColorWithAlpha(trimmed, opacity);
+    if (result) {
+      root.style.setProperty(cssVar, result);
+    }
+  });
+}
+
 function applyAdminFooterSettings(footerConfig = {}) {
   if (!adminFooterElement) {
     return;
@@ -525,7 +672,12 @@ function updateAdminCopyright(title) {
 
 function applyAdminBrandingTheme(branding = {}, options = {}) {
   const colors = normaliseColorMap(branding.colors || {});
+  branding.colors = colors;
   applyColorVariablesToDocument(colors);
+
+  const transparency = normaliseTransparencyMap(branding.transparency || {});
+  branding.transparency = transparency;
+  applyTransparencyVariablesToDocument(colors, transparency);
 
   const root = document.documentElement;
   if (root) {
@@ -612,11 +764,21 @@ function refreshAdminPreview() {
   const footerDefaults = fallback.footer && typeof fallback.footer === 'object' ? fallback.footer : {};
   const footerOverrides = branding.footer && typeof branding.footer === 'object' ? branding.footer : {};
 
+  const mergedTransparency = {
+    ...normaliseTransparencyMap(
+      fallback.transparency && typeof fallback.transparency === 'object' ? fallback.transparency : {}
+    ),
+    ...normaliseTransparencyMap(
+      branding.transparency && typeof branding.transparency === 'object' ? branding.transparency : {}
+    )
+  };
+
   const previewBranding = {
     ...fallback,
     ...branding,
     colors: mergedColors,
-    footer: { ...footerDefaults, ...footerOverrides }
+    footer: { ...footerDefaults, ...footerOverrides },
+    transparency: mergedTransparency
   };
 
   const stored = getStoredPortalConfig();
@@ -667,6 +829,11 @@ async function loadConfiguration() {
 
   brandingClone.colors = normaliseColorMap(brandingColors);
   brandingClone.footer = brandingFooter;
+  const brandingTransparency =
+    brandingClone.transparency && typeof brandingClone.transparency === 'object'
+      ? brandingClone.transparency
+      : {};
+  brandingClone.transparency = normaliseTransparencyMap(brandingTransparency);
 
   defaultPortalConfig = {
     branding: brandingClone,
@@ -765,6 +932,20 @@ function loadCurrentPortalConfig() {
     : {};
   currentPortalConfig.branding.colors = normaliseColorMap({ ...defaultColors, ...currentColors });
 
+  const defaultTransparency = normaliseTransparencyMap(
+    defaultBranding.transparency && typeof defaultBranding.transparency === 'object'
+      ? defaultBranding.transparency
+      : {}
+  );
+  const currentTransparency =
+    currentPortalConfig.branding.transparency && typeof currentPortalConfig.branding.transparency === 'object'
+      ? currentPortalConfig.branding.transparency
+      : {};
+  currentPortalConfig.branding.transparency = {
+    ...defaultTransparency,
+    ...normaliseTransparencyMap(currentTransparency)
+  };
+
   const defaultFooter = defaultBranding.footer && typeof defaultBranding.footer === 'object' ? defaultBranding.footer : {};
   const currentFooter = currentPortalConfig.branding.footer && typeof currentPortalConfig.branding.footer === 'object'
     ? currentPortalConfig.branding.footer
@@ -795,6 +976,12 @@ function persistPortalConfig() {
       ? payload.branding.colors
       : {};
   payload.branding.colors = normaliseColorMap(colors);
+
+  const transparency =
+    payload.branding.transparency && typeof payload.branding.transparency === 'object'
+      ? payload.branding.transparency
+      : {};
+  payload.branding.transparency = normaliseTransparencyMap(transparency);
   localStorage.setItem(PORTAL_LINKS_STORAGE_KEY, JSON.stringify(payload));
 }
 
@@ -838,6 +1025,16 @@ function renderBranding() {
   const colors = normaliseColorMap(branding.colors && typeof branding.colors === 'object' ? branding.colors : {});
   currentPortalConfig.branding.colors = colors;
   const footer = branding.footer && typeof branding.footer === 'object' ? branding.footer : {};
+
+  const defaultTransparencyRaw =
+    defaultBrandingConfig.transparency && typeof defaultBrandingConfig.transparency === 'object'
+      ? defaultBrandingConfig.transparency
+      : {};
+  const defaultTransparency = normaliseTransparencyMap(defaultTransparencyRaw);
+  const transparency = normaliseTransparencyMap(
+    branding.transparency && typeof branding.transparency === 'object' ? branding.transparency : {}
+  );
+  currentPortalConfig.branding.transparency = transparency;
 
   const defaultShowAccountDetails =
     typeof defaultBrandingConfig.showAccountDetails === 'boolean'
@@ -962,6 +1159,93 @@ function renderBranding() {
 
   form.appendChild(colourGrid);
 
+  TRANSPARENCY_FIELDS.forEach((field) => {
+    if (!Object.prototype.hasOwnProperty.call(currentPortalConfig.branding.transparency, field.key)) {
+      const fallbackValue = Object.prototype.hasOwnProperty.call(defaultTransparency, field.key)
+        ? defaultTransparency[field.key]
+        : field.default;
+      const normalisedFallback = Math.min(1, Math.max(0, typeof fallbackValue === 'number' ? fallbackValue : 0));
+      currentPortalConfig.branding.transparency[field.key] = Number(normalisedFallback.toFixed(3));
+    }
+  });
+
+  const transparencyHeading = document.createElement('h3');
+  transparencyHeading.className = 'branding-subheading';
+  transparencyHeading.textContent = 'Glass opacity';
+  form.appendChild(transparencyHeading);
+
+  const transparencyHint = document.createElement('p');
+  transparencyHint.className = 'branding-hint';
+  transparencyHint.textContent = 'Control how transparent the header, link grid, footer, and buttons appear.';
+  form.appendChild(transparencyHint);
+
+  const transparencyGrid = document.createElement('div');
+  transparencyGrid.className = 'transparency-grid';
+
+  TRANSPARENCY_FIELDS.forEach((field) => {
+    const label = document.createElement('label');
+    label.className = 'transparency-control';
+
+    const labelText = document.createElement('span');
+    labelText.textContent = field.label;
+    label.appendChild(labelText);
+
+    const sliderRow = document.createElement('div');
+    sliderRow.className = 'transparency-control__row';
+
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = '0';
+    slider.max = '100';
+    slider.step = '1';
+    slider.name = `transparency-${field.key}`;
+    slider.className = 'transparency-control__slider';
+
+    const defaultValue = Object.prototype.hasOwnProperty.call(defaultTransparency, field.key)
+      ? defaultTransparency[field.key]
+      : field.default;
+    const effectiveValue = Object.prototype.hasOwnProperty.call(transparency, field.key)
+      ? transparency[field.key]
+      : defaultValue;
+    const normalisedValue = Math.min(
+      1,
+      Math.max(0, typeof effectiveValue === 'number' ? effectiveValue : typeof defaultValue === 'number' ? defaultValue : 0)
+    );
+    const sliderValue = Math.round(normalisedValue * 100);
+
+    slider.value = String(sliderValue);
+
+    const valueDisplay = document.createElement('span');
+    valueDisplay.className = 'transparency-control__value';
+    valueDisplay.textContent = `${sliderValue}% opacity`;
+
+    slider.addEventListener('input', () => {
+      const currentValue = Number(slider.value);
+      const safeValue = Number.isNaN(currentValue) ? 0 : Math.min(100, Math.max(0, currentValue));
+      valueDisplay.textContent = `${safeValue}% opacity`;
+
+      if (!currentPortalConfig.branding || typeof currentPortalConfig.branding !== 'object') {
+        return;
+      }
+      if (!currentPortalConfig.branding.transparency || typeof currentPortalConfig.branding.transparency !== 'object') {
+        currentPortalConfig.branding.transparency = {};
+      }
+
+      currentPortalConfig.branding.transparency[field.key] = Number((safeValue / 100).toFixed(3));
+      applyTransparencyVariablesToDocument(
+        currentPortalConfig.branding.colors || {},
+        currentPortalConfig.branding.transparency
+      );
+    });
+
+    sliderRow.appendChild(slider);
+    sliderRow.appendChild(valueDisplay);
+    label.appendChild(sliderRow);
+    transparencyGrid.appendChild(label);
+  });
+
+  form.appendChild(transparencyGrid);
+
   const footerHeading = document.createElement('h3');
   footerHeading.className = 'branding-subheading';
   footerHeading.textContent = 'Portal footer';
@@ -1029,6 +1313,15 @@ function renderBranding() {
       currentPortalConfig.branding.colors = {};
     }
     currentPortalConfig.branding.colors = normaliseColorMap(currentPortalConfig.branding.colors);
+    if (
+      !currentPortalConfig.branding.transparency ||
+      typeof currentPortalConfig.branding.transparency !== 'object'
+    ) {
+      currentPortalConfig.branding.transparency = {};
+    }
+    currentPortalConfig.branding.transparency = normaliseTransparencyMap(
+      currentPortalConfig.branding.transparency
+    );
     persistPortalConfig();
     renderBranding();
     showConsoleMessage('Branding restored to default values.');
@@ -1109,6 +1402,28 @@ function handleBrandingSubmit(form) {
     ...colorOverrides
   });
 
+  const defaultTransparency = normaliseTransparencyMap(
+    defaultBrandingConfig.transparency && typeof defaultBrandingConfig.transparency === 'object'
+      ? defaultBrandingConfig.transparency
+      : {}
+  );
+
+  const transparencyConfig = { ...defaultTransparency };
+  for (const field of TRANSPARENCY_FIELDS) {
+    const rawSlider = formData.get(`transparency-${field.key}`);
+    if (typeof rawSlider !== 'string') {
+      continue;
+    }
+
+    const numericValue = Number(rawSlider);
+    if (Number.isNaN(numericValue)) {
+      continue;
+    }
+
+    const clamped = Math.min(100, Math.max(0, numericValue));
+    transparencyConfig[field.key] = Number((clamped / 100).toFixed(3));
+  }
+
   const footerDefaults =
     defaultBrandingConfig.footer && typeof defaultBrandingConfig.footer === 'object'
       ? defaultBrandingConfig.footer
@@ -1136,7 +1451,8 @@ function handleBrandingSubmit(form) {
     pageBackgroundImage,
     showAccountDetails,
     colors: mergedColors,
-    footer: footerConfig
+    footer: footerConfig,
+    transparency: transparencyConfig
   };
 
   persistPortalConfig();
