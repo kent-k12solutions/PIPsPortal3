@@ -393,8 +393,14 @@ const TRANSPARENCY_TARGETS = {
 
 let msalInstance;
 let loginRequest = {};
-let defaultPortalConfig = { branding: {}, roles: {} };
+let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let accountDetailsEnabled = true;
+
+const urlParams = new URLSearchParams(window.location.search);
+const samlAuthParam = urlParams.get('samlAuth');
+const bypassSamlAuth = samlAuthParam === '0';
+let autoRedirectToSamlEnabled = false;
+let autoRedirectAttempted = false;
 
 function applyColorVariables(colors = {}) {
   const root = document.documentElement;
@@ -580,11 +586,28 @@ function applyTransparencyVariables(colors = {}, transparency = {}) {
   });
 }
 
+function setElementHtmlAndExecuteScripts(element, html) {
+  if (!element) {
+    return;
+  }
+
+  element.innerHTML = html;
+  const scripts = Array.from(element.querySelectorAll('script'));
+  scripts.forEach((script) => {
+    const replacement = document.createElement('script');
+    for (const attribute of Array.from(script.attributes)) {
+      replacement.setAttribute(attribute.name, attribute.value);
+    }
+    replacement.textContent = script.textContent;
+    script.parentNode.replaceChild(replacement, script);
+  });
+}
+
 function applyFooterSettings(footerConfig = {}) {
   if (portalCustomFooter) {
     const rawHtml = typeof footerConfig.customHtml === 'string' ? footerConfig.customHtml : '';
     if (rawHtml.trim()) {
-      portalCustomFooter.innerHTML = rawHtml;
+      setElementHtmlAndExecuteScripts(portalCustomFooter, rawHtml);
       portalCustomFooter.classList.remove('hidden');
     } else {
       portalCustomFooter.innerHTML = '';
@@ -723,8 +746,16 @@ function getStoredPortalConfig() {
     }
     branding.colors = normalisePortalColorConfig(branding.colors);
     const roles = parsed.roles && typeof parsed.roles === 'object' ? parsed.roles : {};
+    const authenticationSource =
+      parsed.authentication && typeof parsed.authentication === 'object'
+        ? parsed.authentication
+        : {};
+    const authentication = {};
+    if (typeof authenticationSource.autoRedirectToSaml === 'boolean') {
+      authentication.autoRedirectToSaml = authenticationSource.autoRedirectToSaml;
+    }
 
-    return { branding, roles };
+    return { branding, roles, authentication };
   } catch (error) {
     console.warn('Unable to read portal links from local storage.', error);
     return null;
@@ -786,6 +817,34 @@ function getPortalBranding() {
     showAccountDetails:
       typeof storedShowAccountDetails === 'boolean' ? storedShowAccountDetails : defaultShowAccountDetails
   };
+}
+
+function getPortalAuthenticationSettings() {
+  const stored = getStoredPortalConfig();
+  const defaultAuthentication =
+    defaultPortalConfig.authentication && typeof defaultPortalConfig.authentication === 'object'
+      ? defaultPortalConfig.authentication
+      : {};
+  const storedAuthentication =
+    stored && stored.authentication && typeof stored.authentication === 'object'
+      ? stored.authentication
+      : {};
+
+  const defaultAutoRedirect =
+    typeof defaultAuthentication.autoRedirectToSaml === 'boolean'
+      ? defaultAuthentication.autoRedirectToSaml
+      : false;
+
+  if (typeof storedAuthentication.autoRedirectToSaml === 'boolean') {
+    return { autoRedirectToSaml: storedAuthentication.autoRedirectToSaml };
+  }
+
+  return { autoRedirectToSaml: defaultAutoRedirect };
+}
+
+function refreshAutoRedirectSetting() {
+  const authentication = getPortalAuthenticationSettings();
+  autoRedirectToSamlEnabled = Boolean(authentication.autoRedirectToSaml);
 }
 
 function applyBranding() {
@@ -1040,6 +1099,7 @@ function initializeMsal(config) {
 
       showAccountInfo(account);
       loginButton.disabled = false;
+      maybeTriggerAutoRedirect(account);
     })
     .catch((error) => {
       console.error('Authentication error', error);
@@ -1047,6 +1107,42 @@ function initializeMsal(config) {
       loginButton.disabled = false;
       showAccountInfo(null);
     });
+}
+
+function maybeTriggerAutoRedirect(account) {
+  if (autoRedirectAttempted) {
+    return;
+  }
+
+  if (bypassSamlAuth) {
+    return;
+  }
+
+  if (account) {
+    return;
+  }
+
+  if (!autoRedirectToSamlEnabled) {
+    return;
+  }
+
+  if (!msalInstance) {
+    return;
+  }
+
+  autoRedirectAttempted = true;
+  if (loginButton) {
+    loginButton.disabled = true;
+  }
+
+  setStatus('Redirecting to sign-in…');
+  msalInstance.loginRedirect(loginRequest).catch((error) => {
+    console.error('Automatic sign-in failed.', error);
+    if (loginButton) {
+      loginButton.disabled = false;
+    }
+    setStatus('Unable to start automatic sign-in. Use the sign-in button to continue.');
+  });
 }
 
 if (loginButton) {
@@ -1107,10 +1203,23 @@ fetch(resolvePortalAssetUrl('config.json'))
     brandingClone.colors = brandingColors;
     brandingClone.footer = brandingFooter;
 
+    const portalAuthentication =
+      config.portal && typeof config.portal.authentication === 'object'
+        ? config.portal.authentication
+        : {};
+    const defaultAuthentication = {
+      autoRedirectToSaml:
+        typeof portalAuthentication.autoRedirectToSaml === 'boolean'
+          ? portalAuthentication.autoRedirectToSaml
+          : false
+    };
+
     defaultPortalConfig = {
       branding: brandingClone,
-      roles: (config.portal && config.portal.roles) || {}
+      roles: (config.portal && config.portal.roles) || {},
+      authentication: defaultAuthentication
     };
+    refreshAutoRedirectSetting();
     applyBranding();
     renderPortal('anonymous');
     initializeMsal(config.azure);
@@ -1124,6 +1233,7 @@ fetch(resolvePortalAssetUrl('config.json'))
 window.addEventListener('storage', (event) => {
   if (event.key === PORTAL_LINKS_STORAGE_KEY) {
     applyBranding();
+    refreshAutoRedirectSetting();
     const account = msalInstance ? msalInstance.getActiveAccount() : null;
     showAccountInfo(account || null);
   }
