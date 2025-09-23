@@ -1,6 +1,6 @@
 :root {
   --color-background: #eaf1ff;
-  --color-surface: #ffffffcc;
+  --color-surface: #ffffff;
   --color-surface-subtle: #f7faff66;
   --color-primary: #1d4ed8;
   --color-primary-accent: #2563eb;
@@ -12,12 +12,12 @@
   --color-muted-rgb: 107, 114, 128;
   --color-border: #ffffff59;
   --color-header-overlay: #ffffffb8;
-  --color-header-surface: #ffffffcc;
-  --color-session-button-background: #ffffffbf;
+  --color-header-surface: var(--color-surface);
+  --color-session-button-background: #ffffff;
   --color-empty-state-background: #ffffff33;
   --color-tertiary-background: #ffffffb8;
   --color-danger: #dc2626;
-  --color-footer-background: #ffffffa6;
+  --color-footer-background: #ffffff;
   --color-footer-text: #475569;
   --color-footer-link: #1d4ed8;
   --page-background-image: none;

@@ -301,34 +301,84 @@ const ROLE_SYNONYMS = {
 };
 
 const COLOR_VARIABLE_MAP = {
-  background: '--color-background',
-  surface: '--color-surface',
-  surfaceSubtle: '--color-surface-subtle',
-  primary: '--color-primary',
-  primaryDark: '--color-primary-dark',
+  pageBackground: '--color-background',
+  mainSurface: '--color-surface',
+  subtleSurface: '--color-surface-subtle',
+  primaryBrand: '--color-primary',
+  primaryBrandDark: '--color-primary-dark',
   primaryAccent: '--color-primary-accent',
-  text: '--color-text',
-  muted: '--color-muted',
+  mainText: '--color-text',
+  mutedText: '--color-muted',
   border: '--color-border',
+  headerSurface: '--color-header-surface',
   headerOverlay: '--color-header-overlay',
-  sessionButtonBackground: '--color-session-button-background',
+  buttonBackground: '--color-session-button-background',
   emptyStateBackground: '--color-empty-state-background',
-  tertiaryButtonBackground: '--color-tertiary-background',
+  secondarySurface: '--color-tertiary-background',
   danger: '--color-danger',
   footerBackground: '--color-footer-background',
   footerText: '--color-footer-text',
   footerLink: '--color-footer-link'
 };
 
+const COLOR_KEY_ALIASES = {
+  background: 'pageBackground',
+  pageBackground: 'pageBackground',
+  surface: 'mainSurface',
+  mainSurface: 'mainSurface',
+  surfaceSubtle: 'subtleSurface',
+  subtleSurface: 'subtleSurface',
+  primary: 'primaryBrand',
+  primaryBrand: 'primaryBrand',
+  primaryDark: 'primaryBrandDark',
+  primaryBrandDark: 'primaryBrandDark',
+  primaryAccent: 'primaryAccent',
+  text: 'mainText',
+  mainText: 'mainText',
+  muted: 'mutedText',
+  mutedText: 'mutedText',
+  border: 'border',
+  headerSurface: 'headerSurface',
+  headerOverlay: 'headerOverlay',
+  sessionButtonBackground: 'buttonBackground',
+  buttonBackground: 'buttonBackground',
+  emptyStateBackground: 'emptyStateBackground',
+  tertiaryButtonBackground: 'secondarySurface',
+  secondarySurface: 'secondarySurface',
+  danger: 'danger',
+  footerBackground: 'footerBackground',
+  footerText: 'footerText',
+  footerLink: 'footerLink'
+};
+
+function remapColorKeys(map = {}) {
+  const remapped = {};
+  if (!map || typeof map !== 'object') {
+    return remapped;
+  }
+
+  Object.entries(map).forEach(([key, value]) => {
+    const normalisedKey = COLOR_KEY_ALIASES[key] || key;
+    remapped[normalisedKey] = value;
+  });
+
+  return remapped;
+}
+
+function normalisePortalColorConfig(map = {}) {
+  return normaliseColorMap(remapColorKeys(map));
+}
+
 const TRANSPARENCY_TARGETS = {
   panel: {
     cssVar: '--color-surface',
-    colorKey: 'surface'
+    colorKey: 'mainSurface'
   },
   header: {
     cssVar: '--color-header-surface',
-    colorKey: 'surface',
-    fallbackVar: '--color-surface'
+    colorKey: 'headerSurface',
+    fallbackVar: '--color-surface',
+    fallbackColorKey: 'mainSurface'
   },
   footer: {
     cssVar: '--color-footer-background',
@@ -336,7 +386,7 @@ const TRANSPARENCY_TARGETS = {
   },
   button: {
     cssVar: '--color-session-button-background',
-    colorKey: 'sessionButtonBackground'
+    colorKey: 'buttonBackground'
   }
 };
 
@@ -351,10 +401,18 @@ function applyColorVariables(colors = {}) {
     return;
   }
 
-  const normalisedColors = normaliseColorMap(colors);
+  const canonicalColors = normalisePortalColorConfig(colors);
+  const effectiveColors = { ...canonicalColors };
+
+  if (
+    !Object.prototype.hasOwnProperty.call(effectiveColors, 'headerSurface') &&
+    Object.prototype.hasOwnProperty.call(effectiveColors, 'mainSurface')
+  ) {
+    effectiveColors.headerSurface = effectiveColors.mainSurface;
+  }
 
   Object.entries(COLOR_VARIABLE_MAP).forEach(([key, variable]) => {
-    const value = normalisedColors[key];
+    const value = effectiveColors[key];
     if (value === undefined) {
       root.style.removeProperty(variable);
       return;
@@ -369,21 +427,21 @@ function applyColorVariables(colors = {}) {
   });
 
   const primarySource =
-    normalisedColors.primary || window.getComputedStyle(root).getPropertyValue('--color-primary');
+    effectiveColors.primaryBrand || window.getComputedStyle(root).getPropertyValue('--color-primary');
   const primaryRgb = resolveColorToRgbComponents(primarySource.trim());
   if (primaryRgb) {
     root.style.setProperty('--color-primary-rgb', primaryRgb);
   }
 
   const textSource =
-    normalisedColors.text || window.getComputedStyle(root).getPropertyValue('--color-text');
+    effectiveColors.mainText || window.getComputedStyle(root).getPropertyValue('--color-text');
   const textRgb = resolveColorToRgbComponents(textSource.trim());
   if (textRgb) {
     root.style.setProperty('--color-text-rgb', textRgb);
   }
 
   const mutedSource =
-    normalisedColors.muted || window.getComputedStyle(root).getPropertyValue('--color-muted');
+    effectiveColors.mutedText || window.getComputedStyle(root).getPropertyValue('--color-muted');
   const mutedRgb = resolveColorToRgbComponents(mutedSource.trim());
   if (mutedRgb) {
     root.style.setProperty('--color-muted-rgb', mutedRgb);
@@ -417,14 +475,23 @@ function applyTransparencyVariables(colors = {}, transparency = {}) {
 
   const transparencyMap = normaliseTransparencyMap(transparency);
   const computedStyle = window.getComputedStyle(root);
+  const canonicalColors = normalisePortalColorConfig(colors);
+  const effectiveColors = { ...canonicalColors };
+
+  if (
+    !Object.prototype.hasOwnProperty.call(effectiveColors, 'headerSurface') &&
+    Object.prototype.hasOwnProperty.call(effectiveColors, 'mainSurface')
+  ) {
+    effectiveColors.headerSurface = effectiveColors.mainSurface;
+  }
 
   Object.entries(TRANSPARENCY_TARGETS).forEach(([key, target]) => {
-    const { cssVar, colorKey, fallbackVar } = target;
+    const { cssVar, colorKey, fallbackVar, fallbackColorKey } = target;
     const opacity = transparencyMap[key];
-    const hasColorOverride = colors && Object.prototype.hasOwnProperty.call(colors, colorKey);
+    const hasColorOverride = Object.prototype.hasOwnProperty.call(effectiveColors, colorKey);
 
     if (hasColorOverride) {
-      const overrideValue = colors[colorKey];
+      const overrideValue = effectiveColors[colorKey];
       if (
         overrideValue === '' ||
         (typeof overrideValue === 'string' && overrideValue.trim().toLowerCase() === 'transparent')
@@ -443,7 +510,11 @@ function applyTransparencyVariables(colors = {}, transparency = {}) {
 
     let baseColor = '';
     if (hasColorOverride) {
-      baseColor = colors[colorKey];
+      baseColor = effectiveColors[colorKey];
+    }
+
+    if (!baseColor && fallbackColorKey && effectiveColors[fallbackColorKey]) {
+      baseColor = effectiveColors[fallbackColorKey];
     }
 
     if (!baseColor && fallbackVar) {
@@ -620,7 +691,7 @@ function getStoredPortalConfig() {
     if (!branding.colors || typeof branding.colors !== 'object') {
       branding.colors = {};
     }
-    branding.colors = normaliseColorMap(branding.colors);
+    branding.colors = normalisePortalColorConfig(branding.colors);
     const roles = parsed.roles && typeof parsed.roles === 'object' ? parsed.roles : {};
 
     return { branding, roles };
@@ -650,10 +721,10 @@ function getPortalBranding() {
     : {};
   const storedBranding = stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
 
-  const defaultColors = normaliseColorMap(
+  const defaultColors = normalisePortalColorConfig(
     defaultBranding.colors && typeof defaultBranding.colors === 'object' ? defaultBranding.colors : {}
   );
-  const storedColors = normaliseColorMap(
+  const storedColors = normalisePortalColorConfig(
     storedBranding.colors && typeof storedBranding.colors === 'object' ? storedBranding.colors : {}
   );
 
@@ -679,7 +750,7 @@ function getPortalBranding() {
   return {
     ...defaultBranding,
     ...storedBranding,
-    colors: normaliseColorMap({ ...defaultColors, ...storedColors }),
+    colors: normalisePortalColorConfig({ ...defaultColors, ...storedColors }),
     footer: { ...defaultFooter, ...storedFooter },
     transparency: { ...defaultTransparency, ...storedTransparency },
     showAccountDetails:
@@ -692,7 +763,7 @@ function applyBranding() {
   const stored = getStoredPortalConfig();
   const storedBranding = stored && stored.branding && typeof stored.branding === 'object' ? stored.branding : {};
 
-  const normalisedColors = normaliseColorMap(branding.colors || {});
+  const normalisedColors = normalisePortalColorConfig(branding.colors || {});
   branding.colors = normalisedColors;
   applyColorVariables(normalisedColors);
 
@@ -996,7 +1067,7 @@ fetch(resolvePortalAssetUrl('config.json'))
     const brandingClone = { ...portalBranding };
     const brandingColors =
       portalBranding.colors && typeof portalBranding.colors === 'object'
-        ? normaliseColorMap(portalBranding.colors)
+        ? normalisePortalColorConfig(portalBranding.colors)
         : {};
     const brandingFooter =
       portalBranding.footer && typeof portalBranding.footer === 'object'
