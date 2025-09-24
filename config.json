@@ -3,8 +3,8 @@
     "clientId": "fab20c6a-ba3b-416c-9058-3c9cdf8303e9",
     "authority": "https://id.k12college.parentidpassport.com/pipsk12college.onmicrosoft.com/B2C_1A_PIPS_PORTAL_SIGNIN_PROD",
     "knownAuthorities": ["id.k12college.parentidpassport.com"],
-    "redirectUri": "https://b2cpipscustompages.blob.core.windows.net/portal/index.html",
-    "postLogoutRedirectUri": "https://b2cpipscustompages.blob.core.windows.net/portal/index.html",
+    "redirectUri": "http://localhost:5500/index.html",
+    "postLogoutRedirectUri": "https://localhost:5500/index.html",
     "scopes": ["openid", "offline_access"]
   },
   "admin": {
@@ -13,36 +13,36 @@
   },
   "portal": {
     "branding": {
-      "title": "PIPS Unified Portal",
-      "tagline": "Sign in with your ParentIDPassport credentials to unlock experiences tailored to your role.",
-      "logo": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/shield-star.svg",
-      "backgroundImage": "https://images.unsplash.com/photo-1509223197845-458d87318791?auto=format&fit=crop&w=1400&q=80",
+      "title": "PIPs Portal",
+      "tagline": "",
+      "logo": "",
+      "backgroundImage": "",
       "showAccountDetails": true,
-      "pageBackgroundImage": "https://images.unsplash.com/photo-1482192597420-4817fdd7e8b0?auto=format&fit=crop&w=1600&q=80",
+      "pageBackgroundImage": "https://www.parentidpassport.com/wp-content/uploads/2025/09/qingbao-meng-01_igFr7hd4-unsplash-scaled.jpg",
       "colors": {
-        "pageBackground": "#eaf1ff",
+        "pageBackground": "",
         "mainSurface": "#ffffff",
         "subtleSurface": "#f7faff66",
-        "primaryBrand": "#1d4ed8",
+        "primaryBrand": "",
         "primaryBrandDark": "#1a3696",
-        "primaryAccent": "#2563eb",
+        "primaryAccent": "#1d4ed8",
         "mainText": "#1f2937",
-        "mutedText": "#6b7280",
-        "border": "#ffffff59",
-        "headerOverlay": "#ffffffb8",
+        "mutedText": "#000000",
+        "border": "#000000",
+        "headerOverlay": "#",
         "buttonBackground": "#ffffff",
         "emptyStateBackground": "#ffffff33",
-        "secondarySurface": "#ffffffb8",
+        "secondarySurface": "#ffffffff",
         "danger": "#dc2626",
         "footerBackground": "#ffffff",
-        "footerText": "#475569",
-        "footerLink": "#1d4ed8"
+        "footerText": "#000000",
+        "footerLink": "#000000"
       },
       "transparency": {
-        "panel": 0.8,
-        "header": 0.72,
-        "footer": 0.65,
-        "button": 0.75
+        "panel": 0.3,
+        "header": 0.3,
+        "footer": 0.3,
+        "button": 0.3
       },
       "footer": {
         "customHtml": "",
@@ -56,90 +56,130 @@
     "roles": {
       "anonymous": [
         {
-          "title": "District Announcements",
-          "url": "https://www.example.com/announcements",
-          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/volume.svg",
+          "title": "Contact Us",
+          "url": "https://www.parentidpassport.com/contact-us/",
+          "icon": "icons/paper-plane.png",
           "target": "_blank",
-          "backgroundColor": "#1d4ed8",
-          "textColor": "#ffffff",
-          "borderColor": "#ffffff66",
-          "opacity": 0.88
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         },
         {
-          "title": "Contact Us",
-          "url": "https://www.example.com/contact",
-          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/phone.svg",
+          "title": "Parent ID Passport",
+          "url": "https://www.parentidpassport.com/",
+          "icon": "icons/home.png",
           "target": "_self",
-          "backgroundColor": "#0ea5e9",
-          "textColor": "#ffffff",
-          "borderColor": "#ffffff66",
-          "opacity": 0.82
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         }
       ],
       "parents": [
         {
-          "title": "Grades & Attendance",
-          "url": "https://www.example.com/grades",
-          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/report-analytics.svg",
+          "title": "Parent Lounge",
+          "url": "https://k12apidev.tassweb.com.au/parentlounge",
+          "icon": "icons/users-alt.png",
           "target": "_blank",
-          "backgroundColor": "#7c3aed",
-          "textColor": "#ffffff",
-          "borderColor": "#ffffff66",
-          "opacity": 0.82
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         },
         {
-          "title": "Meal Payments",
-          "url": "https://www.example.com/meals",
-          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/credit-card.svg",
+          "title": "My School Connect",
+          "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
+          "icon": "icons/home.png",
           "target": "_blank",
-          "backgroundColor": "#f97316",
-          "textColor": "#ffffff",
-          "borderColor": "#ffffff80",
-          "opacity": 0.86
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
+        },
+        {
+          "title": "My School Connect",
+          "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
+          "icon": "icons/paper-plane.png",
+          "target": "_blank",
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
+        },
+        {
+          "title": "My School Connect",
+          "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
+          "icon": "icons/home.png",
+          "target": "_blank",
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
+        },
+        {
+          "title": "My School Connect",
+          "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
+          "icon": "icons/book-bookmark.png",
+          "target": "_blank",
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
+        },
+        {
+          "title": "My School Connect",
+          "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
+          "icon": "icons/home.png",
+          "target": "_blank",
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         }
       ],
       "students": [
         {
           "title": "Class Schedule",
           "url": "https://www.example.com/schedule",
-          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/calendar.svg",
+          "icon": "icons/home.png",
           "target": "_self",
-          "backgroundColor": "#10b981",
-          "textColor": "#0f172a",
-          "borderColor": "#0f172a33",
-          "opacity": 0.85
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         },
         {
           "title": "Library Resources",
           "url": "https://www.example.com/library",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/book.svg",
           "target": "_blank",
-          "backgroundColor": "#facc15",
-          "textColor": "#0f172a",
-          "borderColor": "#0f172a44",
-          "opacity": 0.9
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         }
       ],
       "staff": [
         {
           "title": "HR Portal",
           "url": "https://www.example.com/hr",
-          "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/id.svg",
+          "icon": "icons/users-alt.png",
           "target": "_blank",
-          "backgroundColor": "#334155",
-          "textColor": "#f8fafc",
-          "borderColor": "#f8fafc55",
-          "opacity": 0.75
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         },
         {
           "title": "IT Help Desk",
           "url": "https://www.example.com/helpdesk",
           "icon": "https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/tools.svg",
           "target": "_self",
-          "backgroundColor": "#ef4444",
-          "textColor": "#ffffff",
-          "borderColor": "#ffffff66",
-          "opacity": 0.8
+          "backgroundColor": "",
+          "textColor": "",
+          "borderColor": "",
+          "opacity": 1.00
         }
       ]
     }
