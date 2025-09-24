@@ -1,4 +1,5 @@
 const CACHE_VERSION = 'pips-portal-cache-v1';
+const CONFIG_CACHE_VERSION = 'pips-portal-config-v1';
 const APP_SHELL_ASSETS = [
   '/',
   '/index.html',
@@ -21,17 +22,59 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
+  const allowedCaches = [CACHE_VERSION, CONFIG_CACHE_VERSION];
   event.waitUntil(
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key)))
+        Promise.all(keys.filter((key) => !allowedCaches.includes(key)).map((key) => caches.delete(key)))
       )
       .then(() => self.clients.claim())
   );
 });
 
 const CONFIG_PATH = '/config.json';
+
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || typeof data !== 'object') {
+    return;
+  }
+
+  if (data.type === 'PORTAL_CONFIG_UPDATE') {
+    const replyPort = event.ports && event.ports[0];
+    event.waitUntil(
+      storeConfigOverride(data.payload)
+        .then(() => {
+          if (replyPort) {
+            replyPort.postMessage({ success: true });
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to update cached config.json.', error);
+          if (replyPort) {
+            replyPort.postMessage({ success: false, error: error && error.message ? error.message : String(error) });
+          }
+        })
+    );
+  } else if (data.type === 'PORTAL_CONFIG_CLEAR') {
+    const replyPort = event.ports && event.ports[0];
+    event.waitUntil(
+      clearConfigOverride()
+        .then(() => {
+          if (replyPort) {
+            replyPort.postMessage({ success: true });
+          }
+        })
+        .catch((error) => {
+          console.error('Failed to clear cached config.json override.', error);
+          if (replyPort) {
+            replyPort.postMessage({ success: false, error: error && error.message ? error.message : String(error) });
+          }
+        })
+    );
+  }
+});
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
@@ -53,9 +96,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (requestUrl.pathname === CONFIG_PATH) {
-    event.respondWith(
-      networkFirst(request, { cacheOverride: 'no-store', shouldCache: false })
-    );
+    event.respondWith(handleConfigRequest(request));
     return;
   }
 
@@ -120,4 +161,42 @@ function cacheResponse(request, response) {
   caches.open(CACHE_VERSION).then((cache) => {
     cache.put(request, response);
   });
+}
+
+async function handleConfigRequest(request) {
+  const cache = await caches.open(CONFIG_CACHE_VERSION);
+  const cached = await cache.match(CONFIG_PATH);
+  const isOverride = cached && cached.headers.get('X-Portal-Config-Override') === 'true';
+  if (isOverride) {
+    return cached.clone();
+  }
+
+  try {
+    const networkResponse = await fetch(request, { cache: 'no-store' });
+    await cache.put(CONFIG_PATH, networkResponse.clone());
+    return networkResponse;
+  } catch (error) {
+    if (cached) {
+      return cached.clone();
+    }
+    throw error;
+  }
+}
+
+async function storeConfigOverride(configData) {
+  const cache = await caches.open(CONFIG_CACHE_VERSION);
+  const body = typeof configData === 'string' ? configData : JSON.stringify(configData);
+  const response = new Response(body, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      'X-Portal-Config-Override': 'true'
+    }
+  });
+  await cache.put(CONFIG_PATH, response);
+}
+
+async function clearConfigOverride() {
+  const cache = await caches.open(CONFIG_CACHE_VERSION);
+  await cache.delete(CONFIG_PATH);
 }
