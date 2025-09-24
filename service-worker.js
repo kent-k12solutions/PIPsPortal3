@@ -6,7 +6,7 @@ const APP_SHELL_ASSETS = [
   '/main.js',
   '/admin.html',
   '/admin.js',
-  '/manifest.webmanifest',
+  '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
 ];
