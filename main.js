@@ -257,10 +257,29 @@ const PortalAssetUtils =
       }
     }
 
-    return { resolveUrl };
+    function addCacheBustingQuery(url) {
+      const timestamp = Date.now().toString();
+
+      try {
+        const resolved = new URL(url, determineBaseUrl());
+        resolved.searchParams.set('_', timestamp);
+        return resolved.toString();
+      } catch (error) {
+        try {
+          const resolved = new URL(url, window.location.href);
+          resolved.searchParams.set('_', timestamp);
+          return resolved.toString();
+        } catch (innerError) {
+          const separator = url.includes('?') ? '&' : '?';
+          return `${url}${separator}_${timestamp}`;
+        }
+      }
+    }
+
+    return { resolveUrl, addCacheBustingQuery };
   })());
 
-const { resolveUrl: resolvePortalAssetUrl } = PortalAssetUtils;
+const { resolveUrl: resolvePortalAssetUrl, addCacheBustingQuery } = PortalAssetUtils;
 
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) {
@@ -1411,7 +1430,7 @@ if (logoutButton) {
   });
 }
 
-const portalConfigUrl = resolvePortalAssetUrl('config.json');
+const portalConfigUrl = addCacheBustingQuery(resolvePortalAssetUrl('config.json'));
 
 fetch(portalConfigUrl, { cache: 'no-store' })
   .then((response) => {

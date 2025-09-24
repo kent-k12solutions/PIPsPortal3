@@ -54,7 +54,7 @@ self.addEventListener('fetch', (event) => {
 
   if (requestUrl.pathname === CONFIG_PATH) {
     event.respondWith(
-      networkFirst(request, { cacheOverride: 'no-store', shouldCache: true })
+      networkFirst(request, { cacheOverride: 'no-store', shouldCache: false })
     );
     return;
   }
