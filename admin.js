@@ -26,6 +26,51 @@ function registerServiceWorker() {
 
 registerServiceWorker();
 
+async function sendConfigUpdateToServiceWorker(configData) {
+  if (!('serviceWorker' in navigator)) {
+    return false;
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const target = navigator.serviceWorker.controller || registration.active;
+    if (!target) {
+      return false;
+    }
+
+    return await new Promise((resolve) => {
+      const channel = new MessageChannel();
+      const timeoutId = setTimeout(() => resolve(false), 5000);
+
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timeoutId);
+        const data = event.data || {};
+        if (data && data.error) {
+          console.error('Service worker rejected portal configuration update.', data.error);
+        }
+        resolve(Boolean(data.success));
+      };
+
+      try {
+        target.postMessage(
+          {
+            type: 'PORTAL_CONFIG_UPDATE',
+            payload: configData
+          },
+          [channel.port2]
+        );
+      } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('Failed to post portal configuration update to the service worker.', error);
+        resolve(false);
+      }
+    });
+  } catch (error) {
+    console.error('Failed to communicate with the service worker.', error);
+    return false;
+  }
+}
+
 const PortalColorUtils =
   window.PortalColorUtils ||
   (window.PortalColorUtils = (() => {
@@ -717,6 +762,7 @@ const initialAdminPortalTagline = adminPortalTaglineElement ? adminPortalTagline
 let adminCredentials = { username: '', passwordHash: '' };
 let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let currentPortalConfig = { branding: {}, roles: {}, authentication: {} };
+let loadedConfigSnapshot = null;
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -1101,6 +1147,7 @@ async function loadConfiguration() {
   }
 
   const config = await response.json();
+  loadedConfigSnapshot = deepClone(config);
   adminCredentials = config.admin || { username: '', passwordHash: '' };
 
   const portalBranding = (config.portal && config.portal.branding) || {};
@@ -1299,7 +1346,13 @@ function loadCurrentPortalConfig() {
   });
 }
 
-function persistPortalConfig() {
+async function persistPortalConfig() {
+  const previousStoredConfig = localStorage.getItem(PORTAL_LINKS_STORAGE_KEY);
+
+  if (!loadedConfigSnapshot || typeof loadedConfigSnapshot !== 'object') {
+    throw new Error('Configuration data is not available yet.');
+  }
+
   const rolesPayload = {};
   if (currentPortalConfig.roles && typeof currentPortalConfig.roles === 'object') {
     Object.entries(currentPortalConfig.roles).forEach(([role, links]) => {
@@ -1317,35 +1370,63 @@ function persistPortalConfig() {
 
   currentPortalConfig.roles = rolesPayload;
 
-  const payload = {
-    branding: currentPortalConfig.branding || {},
-    roles: rolesPayload
-  };
-  if (!payload.branding || typeof payload.branding !== 'object') {
-    payload.branding = {};
+  const brandingSource = currentPortalConfig.branding && typeof currentPortalConfig.branding === 'object'
+    ? currentPortalConfig.branding
+    : {};
+  const brandingPayload = deepClone(brandingSource);
+  if (!brandingPayload.colors || typeof brandingPayload.colors !== 'object') {
+    brandingPayload.colors = {};
   }
-  const colors =
-    payload.branding.colors && typeof payload.branding.colors === 'object'
-      ? payload.branding.colors
-      : {};
-  payload.branding.colors = normalisePortalColorConfig(colors);
+  brandingPayload.colors = normalisePortalColorConfig(brandingPayload.colors);
 
-  const transparency =
-    payload.branding.transparency && typeof payload.branding.transparency === 'object'
-      ? payload.branding.transparency
-      : {};
-  payload.branding.transparency = normaliseTransparencyMap(transparency);
-  const authentication =
+  if (!brandingPayload.transparency || typeof brandingPayload.transparency !== 'object') {
+    brandingPayload.transparency = {};
+  }
+  brandingPayload.transparency = normaliseTransparencyMap(brandingPayload.transparency);
+
+  const authenticationSource =
     currentPortalConfig.authentication && typeof currentPortalConfig.authentication === 'object'
       ? currentPortalConfig.authentication
       : {};
-  payload.authentication = {
+  const authenticationPayload = {
     autoRedirectToSaml:
-      typeof authentication.autoRedirectToSaml === 'boolean'
-        ? authentication.autoRedirectToSaml
+      typeof authenticationSource.autoRedirectToSaml === 'boolean'
+        ? authenticationSource.autoRedirectToSaml
         : false
   };
+
+  const payload = {
+    branding: brandingPayload,
+    roles: rolesPayload,
+    authentication: authenticationPayload
+  };
+
+  currentPortalConfig.branding = deepClone(brandingPayload);
+  currentPortalConfig.authentication = { ...authenticationPayload };
+
   localStorage.setItem(PORTAL_LINKS_STORAGE_KEY, JSON.stringify(payload));
+
+  const baseConfig = loadedConfigSnapshot ? deepClone(loadedConfigSnapshot) : {};
+  const existingPortalConfig =
+    baseConfig.portal && typeof baseConfig.portal === 'object' ? baseConfig.portal : {};
+  baseConfig.portal = {
+    ...existingPortalConfig,
+    branding: payload.branding,
+    roles: payload.roles,
+    authentication: payload.authentication
+  };
+
+  const syncSucceeded = await sendConfigUpdateToServiceWorker(baseConfig);
+  if (!syncSucceeded) {
+    if (previousStoredConfig === null) {
+      localStorage.removeItem(PORTAL_LINKS_STORAGE_KEY);
+    } else {
+      localStorage.setItem(PORTAL_LINKS_STORAGE_KEY, previousStoredConfig);
+    }
+    throw new Error('Unable to persist portal configuration to config.json.');
+  }
+
+  loadedConfigSnapshot = deepClone(baseConfig);
 }
 
 function renderBranding() {
@@ -1701,7 +1782,7 @@ function renderBranding() {
   resetButton.type = 'button';
   resetButton.className = 'tertiary-button';
   resetButton.textContent = 'Use default branding';
-  resetButton.addEventListener('click', () => {
+  resetButton.addEventListener('click', async () => {
     const confirmed = window.confirm('Restore all branding settings to their defaults?');
     if (!confirmed) {
       return;
@@ -1770,9 +1851,16 @@ function renderBranding() {
     }
     Object.assign(currentPortalConfig.branding.footer, preservedFooter);
 
-    persistPortalConfig();
-    renderBranding();
-    showConsoleMessage('Branding restored to default values.');
+    try {
+      await persistPortalConfig();
+      renderBranding();
+      showConsoleMessage('Branding restored to default values.');
+    } catch (error) {
+      console.error('Unable to restore default branding.', error);
+      loadCurrentPortalConfig();
+      renderBranding();
+      showConsoleMessage('Unable to restore default branding. Please try again.', true);
+    }
   });
 
   actions.appendChild(submitButton);
@@ -1780,9 +1868,9 @@ function renderBranding() {
 
   form.appendChild(actions);
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    handleBrandingSubmit(form);
+    await handleBrandingSubmit(form);
   });
 
   section.appendChild(form);
@@ -1790,7 +1878,7 @@ function renderBranding() {
   refreshAdminPreview();
 }
 
-function handleBrandingSubmit(form) {
+async function handleBrandingSubmit(form) {
   const formData = new FormData(form);
   const title = (formData.get('title') || '').toString().trim();
   const taglineValue = formData.get('tagline');
@@ -1909,9 +1997,16 @@ function handleBrandingSubmit(form) {
     autoRedirectToSaml
   };
 
-  persistPortalConfig();
-  renderBranding();
-  showConsoleMessage('Branding updated successfully.');
+  try {
+    await persistPortalConfig();
+    renderBranding();
+    showConsoleMessage('Branding updated successfully.');
+  } catch (error) {
+    console.error('Unable to save branding settings.', error);
+    loadCurrentPortalConfig();
+    renderBranding();
+    showConsoleMessage('Unable to save branding settings. Please try again.', true);
+  }
 }
 
 function createLinkListItem(roleKey, link, index) {
@@ -2149,9 +2244,9 @@ function buildRoleSection(roleKey) {
   actionRow.appendChild(cancelButton);
 
   form.appendChild(actionRow);
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
-    handleFormSubmit(form);
+    await handleFormSubmit(form);
   });
 
   section.appendChild(form);
@@ -2194,7 +2289,7 @@ function resetForm(form) {
   showConsoleMessage('');
 }
 
-function handleFormSubmit(form) {
+async function handleFormSubmit(form) {
   const roleKey = form.dataset.role;
   if (!roleKey) {
     showConsoleMessage('Unable to determine role for the submitted form.', true);
@@ -2287,8 +2382,15 @@ function handleFormSubmit(form) {
     showConsoleMessage('Link added successfully.');
   }
 
-  persistPortalConfig();
-  renderRoles();
+  try {
+    await persistPortalConfig();
+    renderRoles();
+  } catch (error) {
+    console.error('Unable to save portal links.', error);
+    loadCurrentPortalConfig();
+    renderRoles();
+    showConsoleMessage('Unable to save portal links. Please try again.', true);
+  }
 }
 
 function startEditLink(roleKey, index) {
@@ -2334,7 +2436,7 @@ function startEditLink(roleKey, index) {
   showConsoleMessage(`Editing link #${index + 1} for ${ROLE_LABELS[roleKey] || roleKey}.`);
 }
 
-function deleteLink(roleKey, index) {
+async function deleteLink(roleKey, index) {
   const link = currentPortalConfig.roles[roleKey][index];
   if (!link) {
     return;
@@ -2346,9 +2448,16 @@ function deleteLink(roleKey, index) {
   }
 
   currentPortalConfig.roles[roleKey].splice(index, 1);
-  persistPortalConfig();
-  renderRoles();
-  showConsoleMessage('Link removed.');
+  try {
+    await persistPortalConfig();
+    renderRoles();
+    showConsoleMessage('Link removed.');
+  } catch (error) {
+    console.error('Unable to remove portal link.', error);
+    loadCurrentPortalConfig();
+    renderRoles();
+    showConsoleMessage('Unable to remove portal link. Please try again.', true);
+  }
 }
 
 async function handleLogin(event) {
