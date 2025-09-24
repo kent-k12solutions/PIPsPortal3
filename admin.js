@@ -1075,7 +1075,8 @@ function refreshAdminPreview() {
 }
 
 async function loadConfiguration() {
-  const response = await fetch(resolvePortalAssetUrl('config.json'));
+  const configUrl = resolvePortalAssetUrl('config.json');
+  const response = await fetch(configUrl, { cache: 'no-store' });
   if (!response.ok) {
     throw new Error(`Unable to load config.json (${response.status} ${response.statusText})`);
   }

@@ -6,7 +6,6 @@ const APP_SHELL_ASSETS = [
   '/main.js',
   '/admin.html',
   '/admin.js',
-  '/config.json',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png'
@@ -54,7 +53,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (requestUrl.pathname === CONFIG_PATH) {
-    event.respondWith(networkFirst(request));
+    event.respondWith(
+      networkFirst(request, { cacheOverride: 'no-store', shouldCache: true })
+    );
     return;
   }
 
@@ -76,15 +77,25 @@ async function handleNavigationRequest(request) {
   }
 }
 
-async function networkFirst(request) {
+async function networkFirst(request, { cacheOverride = 'default', shouldCache = true } = {}) {
   try {
-    const networkResponse = await fetch(request);
-    cacheResponse(request, networkResponse.clone());
+    const fetchOptions = {};
+    if (cacheOverride && cacheOverride !== 'default') {
+      fetchOptions.cache = cacheOverride;
+    }
+    const networkResponse = Object.keys(fetchOptions).length
+      ? await fetch(request, fetchOptions)
+      : await fetch(request);
+    if (shouldCache) {
+      cacheResponse(request, networkResponse.clone());
+    }
     return networkResponse;
   } catch (error) {
-    const cached = await caches.match(request);
-    if (cached) {
-      return cached;
+    if (shouldCache) {
+      const cached = await caches.match(request);
+      if (cached) {
+        return cached;
+      }
     }
     throw error;
   }

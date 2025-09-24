@@ -1411,7 +1411,9 @@ if (logoutButton) {
   });
 }
 
-fetch(resolvePortalAssetUrl('config.json'))
+const portalConfigUrl = resolvePortalAssetUrl('config.json');
+
+fetch(portalConfigUrl, { cache: 'no-store' })
   .then((response) => {
     if (!response.ok) {
       throw new Error(`Failed to load config.json: ${response.status} ${response.statusText}`);
