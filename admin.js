@@ -2,6 +2,7 @@ const PORTAL_LINKS_STORAGE_KEY = 'portalLinksConfig';
 const ADMIN_SESSION_KEY = 'portalAdminSession';
 const ADMIN_SESSION_VALUE = 'authenticated';
 const ROLE_ORDER = ['anonymous', 'parents', 'students', 'staff'];
+const CONFIG_SAVE_ENDPOINT = 'save-config.ashx';
 const ROLE_LABELS = {
   anonymous: 'Anonymous (guests)',
   parents: 'Parents & Guardians',
@@ -68,6 +69,56 @@ async function sendConfigUpdateToServiceWorker(configData) {
   } catch (error) {
     console.error('Failed to communicate with the service worker.', error);
     return false;
+  }
+}
+
+async function persistConfigJsonOnServer(configData) {
+  const saveUrl = resolvePortalAssetUrl(CONFIG_SAVE_ENDPOINT);
+  const body = typeof configData === 'string' ? configData : JSON.stringify(configData);
+
+  try {
+    const response = await fetch(saveUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body,
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      let errorDetail = '';
+      try {
+        const text = await response.text();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            errorDetail =
+              parsed && typeof parsed.message === 'string' && parsed.message.trim()
+                ? parsed.message.trim()
+                : text.trim();
+          } catch (jsonError) {
+            errorDetail = text.trim();
+          }
+        }
+      } catch (readError) {
+        // ignore body read errors and fall back to status text
+      }
+
+      if (!errorDetail) {
+        errorDetail = `${response.status} ${response.statusText}`.trim();
+      }
+
+      throw new Error(`Failed to persist config.json on the server: ${errorDetail}`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to persist config.json on the server.', error);
+    return {
+      success: false,
+      error: error && error.message ? error.message : 'An unknown error occurred while saving config.json.'
+    };
   }
 }
 
@@ -1416,8 +1467,29 @@ async function persistPortalConfig() {
     authentication: payload.authentication
   };
 
+  const previousConfigSnapshotString =
+    loadedConfigSnapshot && typeof loadedConfigSnapshot === 'object'
+      ? JSON.stringify(loadedConfigSnapshot)
+      : null;
+
+  const serverSaveResult = await persistConfigJsonOnServer(baseConfig);
+  if (!serverSaveResult.success) {
+    if (previousStoredConfig === null) {
+      localStorage.removeItem(PORTAL_LINKS_STORAGE_KEY);
+    } else {
+      localStorage.setItem(PORTAL_LINKS_STORAGE_KEY, previousStoredConfig);
+    }
+    throw new Error(serverSaveResult.error || 'Unable to persist portal configuration to config.json.');
+  }
+
   const syncSucceeded = await sendConfigUpdateToServiceWorker(baseConfig);
   if (!syncSucceeded) {
+    if (previousConfigSnapshotString) {
+      persistConfigJsonOnServer(previousConfigSnapshotString).catch((error) => {
+        console.error('Failed to restore previous config.json after service worker sync error.', error);
+      });
+    }
+
     if (previousStoredConfig === null) {
       localStorage.removeItem(PORTAL_LINKS_STORAGE_KEY);
     } else {
