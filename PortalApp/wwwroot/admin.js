@@ -10,6 +10,30 @@ const ROLE_LABELS = {
   staff: 'Staff'
 };
 
+let lastKnownConfigSavePath = '';
+
+function updateLastKnownConfigSavePath(path) {
+  if (typeof path !== 'string') {
+    lastKnownConfigSavePath = '';
+    return;
+  }
+
+  const trimmed = path.trim();
+  lastKnownConfigSavePath = trimmed;
+}
+
+function withConfigSaveLocationMessage(message) {
+  if (typeof message !== 'string' || !message) {
+    return message;
+  }
+
+  if (!lastKnownConfigSavePath) {
+    return message;
+  }
+
+  return `${message} Saved to ${lastKnownConfigSavePath}.`;
+}
+
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) {
     return;
@@ -76,6 +100,8 @@ async function persistConfigJsonOnServer(configData) {
   const saveUrl = resolvePortalAssetUrl(CONFIG_SAVE_ENDPOINT);
   const body = typeof configData === 'string' ? configData : JSON.stringify(configData);
 
+  updateLastKnownConfigSavePath('');
+
   try {
     const response = await fetch(saveUrl, {
       method: 'POST',
@@ -87,6 +113,7 @@ async function persistConfigJsonOnServer(configData) {
     });
 
     if (!response.ok) {
+      updateLastKnownConfigSavePath('');
       let errorDetail = '';
       try {
         const text = await response.text();
@@ -112,9 +139,20 @@ async function persistConfigJsonOnServer(configData) {
       throw new Error(`Failed to persist config.json on the server: ${errorDetail}`);
     }
 
-    return { success: true };
+    const savedConfigPathHeader = response.headers.get('X-Portal-Config-Path');
+    const savedConfigPath =
+      typeof savedConfigPathHeader === 'string' ? savedConfigPathHeader.trim() : '';
+
+    updateLastKnownConfigSavePath(savedConfigPath);
+
+    if (savedConfigPath) {
+      console.info('config.json saved on the server at:', savedConfigPath);
+    }
+
+    return { success: true, path: savedConfigPath };
   } catch (error) {
     console.error('Failed to persist config.json on the server.', error);
+    updateLastKnownConfigSavePath('');
     return {
       success: false,
       error: error && error.message ? error.message : 'An unknown error occurred while saving config.json.'
@@ -1466,7 +1504,9 @@ async function handleAdminCredentialsSubmit(event) {
     await persistAdminCredentials(updatedCredentials);
 
     showAdminCredentialsMessage(
-      'Administrator credentials updated. Use the new details the next time you sign in.'
+      withConfigSaveLocationMessage(
+        'Administrator credentials updated. Use the new details the next time you sign in.'
+      )
     );
 
     if (adminCredentialsInputs.currentPassword) {
@@ -2231,7 +2271,7 @@ function renderBranding() {
     try {
       await persistPortalConfig();
       renderBranding();
-      showConsoleMessage('Branding restored to default values.');
+      showConsoleMessage(withConfigSaveLocationMessage('Branding restored to default values.'));
     } catch (error) {
       console.error('Unable to restore default branding.', error);
       loadCurrentPortalConfig();
@@ -2377,7 +2417,7 @@ async function handleBrandingSubmit(form) {
   try {
     await persistPortalConfig();
     renderBranding();
-    showConsoleMessage('Branding updated successfully.');
+    showConsoleMessage(withConfigSaveLocationMessage('Branding updated successfully.'));
   } catch (error) {
     console.error('Unable to save branding settings.', error);
     loadCurrentPortalConfig();
@@ -2751,17 +2791,19 @@ async function handleFormSubmit(form) {
   const linkData = normaliseLinkRecord(linkPayload);
   const index = indexValue === '' ? -1 : Number(indexValue);
 
+  const successMessage =
+    index >= 0 && Number.isInteger(index) ? 'Link updated successfully.' : 'Link added successfully.';
+
   if (index >= 0 && Number.isInteger(index)) {
     currentPortalConfig.roles[roleKey][index] = linkData;
-    showConsoleMessage('Link updated successfully.');
   } else {
     currentPortalConfig.roles[roleKey].push(linkData);
-    showConsoleMessage('Link added successfully.');
   }
 
   try {
     await persistPortalConfig();
     renderRoles();
+    showConsoleMessage(withConfigSaveLocationMessage(successMessage));
   } catch (error) {
     console.error('Unable to save portal links.', error);
     loadCurrentPortalConfig();
@@ -2828,7 +2870,7 @@ async function deleteLink(roleKey, index) {
   try {
     await persistPortalConfig();
     renderRoles();
-    showConsoleMessage('Link removed.');
+    showConsoleMessage(withConfigSaveLocationMessage('Link removed.'));
   } catch (error) {
     console.error('Unable to remove portal link.', error);
     loadCurrentPortalConfig();

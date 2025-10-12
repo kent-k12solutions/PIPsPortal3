@@ -1,0 +1,6 @@
+bin/
+obj/
+publish/
+PortalApp/bin/
+PortalApp/obj/
+PortalApp/publish/

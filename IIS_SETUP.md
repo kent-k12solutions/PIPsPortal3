@@ -1,33 +1,35 @@
-# IIS configuration for saving `config.json`
+# Hosting the ASP.NET Core portal on IIS
 
-The admin portal now sends updates to [`save-config.ashx`](./save-config.ashx). The handler validates the JSON payload and writes it to `config.json` on disk so that subsequent requests (and the service worker cache) see the new configuration.
+The portal is now a .NET 8 ASP.NET Core application. Configuration saves are handled by the `/save-config.ashx` endpoint that writes the JSON payload to `wwwroot/config.json` and returns an `X-Portal-Config-Path` header with the absolute path that IIS used.
 
-Follow the steps below when hosting the portal on IIS:
+Follow the steps below to deploy the application on IIS:
 
-1. **Deploy the files**
-   - Copy the entire contents of the repository (including `save-config.ashx`) to the IIS site root.
-   - Convert the folder into an IIS application that targets the **.NET Framework 4.x** pipeline (Integrated mode).
+1. **Install the .NET 8 Hosting Bundle**
+   - Download the latest [.NET 8 Hosting Bundle](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) on the IIS server.
+   - Run the installer and restart IIS when prompted so the ASP.NET Core module is available.
 
-2. **Enable the handler**
-   - `.ashx` handlers are enabled by default in the .NET pipeline. If handler mappings were customised, add a mapping for `*.ashx` to the **`System.Web.UI.SimpleHandlerFactory`**.
-   - Restart the site after adding the mapping to ensure the new handler is loaded.
+2. **Publish the site**
+   - On your build machine, execute `dotnet publish PortalApp/PortalApp.csproj -c Release -o publish`.
+   - Copy the contents of the generated `publish` folder to your IIS site directory (for example, `C:\inetpub\wwwroot\PIPsPortal`).
 
-3. **Grant write permissions to `config.json`**
-   - Locate the physical folder that contains `config.json`.
-   - Right–click the file → **Properties** → **Security** → **Edit**.
-   - Grant **Modify** permission to the IIS application pool identity (for example, `IIS AppPool\\YourAppPoolName`).
-   - If the application pool runs under a custom service account, grant Modify permission to that account instead.
-   - Repeat the step for the containing folder if inheriting permissions is disabled.
+3. **Create the IIS site or application**
+   - Point the IIS site/application to the publish folder.
+   - Use the **No Managed Code** application pool (ASP.NET Core runs out-of-process behind the ASP.NET Core Module).
 
-4. **Recycle the application pool**
-   - Recycle or restart the application pool so it picks up the permission changes.
+4. **Grant write permission to `config.json`**
+   - Grant **Modify** permission on `wwwroot\config.json` (and optionally the containing folder) to the application pool identity, e.g. `IIS AppPool\PIPsPortal`.
+   - If a custom service account is used for the pool, grant permissions to that account instead.
 
-5. **Verify the endpoint**
-   - Browse to `https://your-site/save-config.ashx` with a GET request; it should return **405 Method Not Allowed** (confirming the handler is active).
-   - Use the admin portal to save a change. `config.json` should update immediately on disk.
+5. **Recycle the application pool**
+   - Recycle or restart the application pool after changing permissions so the worker process picks up the new ACLs.
 
-6. **Optional hardening**
-   - Restrict access to `save-config.ashx` with IIS IP restrictions or Windows authentication if the admin portal is not otherwise secured.
-   - Back up `config.json` regularly so accidental edits can be reverted quickly.
+6. **Verify the save endpoint**
+   - Browse to `https://your-site/save-config.ashx` with a GET request; IIS should return **405 Method Not Allowed**, confirming the endpoint is mapped.
+   - Use the admin portal to save a change and confirm that `wwwroot/config.json` updates immediately.
+   - Inspect the `X-Portal-Config-Path` header in the save response to confirm IIS wrote to the expected location.
 
-Once these steps are complete the admin UI will be able to persist configuration changes through IIS.
+7. **Optional hardening**
+   - Restrict access to `/save-config.ashx` with IP restrictions, Windows authentication, or a reverse proxy firewall.
+   - Back up `config.json` regularly in case you need to revert changes quickly.
+
+After completing these steps the admin UI will persist configuration updates through the ASP.NET Core application.
