@@ -523,6 +523,12 @@ a {
   color: var(--color-muted);
 }
 
+.admin-status--meta {
+  font-size: 0.85rem;
+  color: rgba(var(--color-text-rgb), 0.7);
+  word-break: break-word;
+}
+
 .branding-panel {
   margin-bottom: 2rem;
 }
