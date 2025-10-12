@@ -23,10 +23,9 @@ Follow the steps below to deploy the application on IIS:
 5. **Recycle the application pool**
    - Recycle or restart the application pool after changing permissions so the worker process picks up the new ACLs.
 
-6. **Verify the save endpoint**
-   - Browse to `https://your-site/save-config.ashx` with a GET request; IIS should return **405 Method Not Allowed**, confirming the endpoint is mapped.
-   - Use the admin portal to save a change and confirm that `wwwroot/config.json` updates immediately.
-   - Inspect the `X-Portal-Config-Path` header in the save response to confirm IIS wrote to the expected location.
+5. **Verify the endpoint**
+   - Browse to `https://your-site/save-config.ashx` with a GET request; it should return **405 Method Not Allowed** (confirming the handler is active).
+   - Use the admin portal to save a change. `config.json` should update immediately on disk.
 
 7. **Optional hardening**
    - Restrict access to `/save-config.ashx` with IP restrictions, Windows authentication, or a reverse proxy firewall.
