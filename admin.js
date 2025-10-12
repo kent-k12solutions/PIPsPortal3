@@ -796,6 +796,7 @@ const loginStatus = document.getElementById('admin-login-status');
 const consoleSection = document.getElementById('admin-console');
 const consoleStatus = document.getElementById('admin-console-status');
 const logoutButton = document.getElementById('admin-logout');
+const adminAccountSettingsContainer = document.getElementById('admin-account-settings');
 const brandingContainer = document.getElementById('branding-container');
 const rolesContainer = document.getElementById('roles-container');
 const adminSiteHeader = document.getElementById('admin-site-header');
@@ -814,6 +815,14 @@ let adminCredentials = { username: '', passwordHash: '' };
 let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let currentPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let loadedConfigSnapshot = null;
+let adminCredentialsForm = null;
+let adminCredentialsStatusElement = null;
+const adminCredentialsInputs = {
+  currentPassword: null,
+  newUsername: null,
+  newPassword: null,
+  confirmPassword: null
+};
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -1199,7 +1208,14 @@ async function loadConfiguration() {
 
   const config = await response.json();
   loadedConfigSnapshot = deepClone(config);
-  adminCredentials = config.admin || { username: '', passwordHash: '' };
+
+  const configAdmin = config.admin && typeof config.admin === 'object' ? config.admin : {};
+  adminCredentials = {
+    username:
+      configAdmin && typeof configAdmin.username === 'string' ? configAdmin.username : '',
+    passwordHash:
+      configAdmin && typeof configAdmin.passwordHash === 'string' ? configAdmin.passwordHash : ''
+  };
 
   const portalBranding = (config.portal && config.portal.branding) || {};
   const brandingClone = deepClone(portalBranding || {});
@@ -1244,6 +1260,238 @@ function showConsoleMessage(message, isError = false) {
   }
   consoleStatus.textContent = message;
   consoleStatus.style.color = isError ? '#dc2626' : '';
+}
+
+function showAdminCredentialsMessage(message, isError = false) {
+  if (!adminCredentialsStatusElement) {
+    return;
+  }
+  adminCredentialsStatusElement.textContent = message;
+  adminCredentialsStatusElement.style.color = isError ? '#dc2626' : '';
+}
+
+function setAdminCredentialsFormDisabled(isDisabled) {
+  if (!adminCredentialsForm) {
+    return;
+  }
+
+  const elements = adminCredentialsForm.querySelectorAll('input, button');
+  elements.forEach((element) => {
+    element.disabled = isDisabled;
+  });
+}
+
+function renderAdminAccountSettings() {
+  if (!adminAccountSettingsContainer) {
+    return;
+  }
+
+  adminAccountSettingsContainer.innerHTML = '';
+  adminCredentialsForm = null;
+  adminCredentialsStatusElement = null;
+  adminCredentialsInputs.currentPassword = null;
+  adminCredentialsInputs.newUsername = null;
+  adminCredentialsInputs.newPassword = null;
+  adminCredentialsInputs.confirmPassword = null;
+
+  const section = document.createElement('section');
+  section.className = 'branding-card';
+
+  const heading = document.createElement('h2');
+  heading.textContent = 'Administrator account';
+  section.appendChild(heading);
+
+  const description = document.createElement('p');
+  description.className = 'branding-description';
+  description.textContent =
+    'Update the username and password required to access this administration console.';
+  section.appendChild(description);
+
+  const hint = document.createElement('p');
+  hint.className = 'branding-hint';
+  hint.textContent = 'Enter your current password to confirm any changes.';
+  section.appendChild(hint);
+
+  const passwordHint = document.createElement('p');
+  passwordHint.className = 'branding-hint';
+  passwordHint.textContent = 'Leave the new password fields blank to keep the current password.';
+  section.appendChild(passwordHint);
+
+  const form = document.createElement('form');
+  form.className = 'admin-form';
+  form.id = 'admin-credentials-form';
+
+  const usernameLabel = document.createElement('label');
+  usernameLabel.textContent = 'New username';
+  const usernameInput = document.createElement('input');
+  usernameInput.type = 'text';
+  usernameInput.name = 'newUsername';
+  usernameInput.autocomplete = 'username';
+  usernameInput.required = true;
+  usernameInput.value = adminCredentials && typeof adminCredentials.username === 'string'
+    ? adminCredentials.username
+    : '';
+  usernameInput.defaultValue = usernameInput.value;
+  usernameLabel.appendChild(usernameInput);
+  form.appendChild(usernameLabel);
+
+  const currentPasswordLabel = document.createElement('label');
+  currentPasswordLabel.textContent = 'Current password';
+  const currentPasswordInput = document.createElement('input');
+  currentPasswordInput.type = 'password';
+  currentPasswordInput.name = 'currentPassword';
+  currentPasswordInput.autocomplete = 'current-password';
+  currentPasswordInput.required = true;
+  currentPasswordLabel.appendChild(currentPasswordInput);
+  form.appendChild(currentPasswordLabel);
+
+  const newPasswordLabel = document.createElement('label');
+  newPasswordLabel.textContent = 'New password';
+  const newPasswordInput = document.createElement('input');
+  newPasswordInput.type = 'password';
+  newPasswordInput.name = 'newPassword';
+  newPasswordInput.autocomplete = 'new-password';
+  newPasswordLabel.appendChild(newPasswordInput);
+  form.appendChild(newPasswordLabel);
+
+  const confirmPasswordLabel = document.createElement('label');
+  confirmPasswordLabel.textContent = 'Confirm new password';
+  const confirmPasswordInput = document.createElement('input');
+  confirmPasswordInput.type = 'password';
+  confirmPasswordInput.name = 'confirmPassword';
+  confirmPasswordInput.autocomplete = 'new-password';
+  confirmPasswordLabel.appendChild(confirmPasswordInput);
+  form.appendChild(confirmPasswordLabel);
+
+  const submitButton = document.createElement('button');
+  submitButton.type = 'submit';
+  submitButton.className = 'primary-button';
+  submitButton.textContent = 'Update credentials';
+  form.appendChild(submitButton);
+
+  section.appendChild(form);
+
+  const status = document.createElement('p');
+  status.id = 'admin-credentials-status';
+  status.className = 'admin-status';
+  section.appendChild(status);
+
+  adminAccountSettingsContainer.appendChild(section);
+
+  adminCredentialsForm = form;
+  adminCredentialsStatusElement = status;
+  adminCredentialsInputs.currentPassword = currentPasswordInput;
+  adminCredentialsInputs.newUsername = usernameInput;
+  adminCredentialsInputs.newPassword = newPasswordInput;
+  adminCredentialsInputs.confirmPassword = confirmPasswordInput;
+
+  showAdminCredentialsMessage('');
+
+  form.addEventListener('submit', handleAdminCredentialsSubmit);
+}
+
+async function handleAdminCredentialsSubmit(event) {
+  event.preventDefault();
+
+  if (!adminCredentialsForm) {
+    return;
+  }
+
+  const currentPassword = adminCredentialsInputs.currentPassword
+    ? adminCredentialsInputs.currentPassword.value
+    : '';
+  const newUsernameRaw = adminCredentialsInputs.newUsername
+    ? adminCredentialsInputs.newUsername.value
+    : '';
+  const newPassword = adminCredentialsInputs.newPassword
+    ? adminCredentialsInputs.newPassword.value
+    : '';
+  const confirmPassword = adminCredentialsInputs.confirmPassword
+    ? adminCredentialsInputs.confirmPassword.value
+    : '';
+
+  const newUsername = typeof newUsernameRaw === 'string' ? newUsernameRaw.trim() : '';
+
+  if (adminCredentialsInputs.newUsername) {
+    adminCredentialsInputs.newUsername.value = newUsername;
+  }
+
+  if (!currentPassword) {
+    showAdminCredentialsMessage('Enter your current password to make changes.', true);
+    return;
+  }
+
+  if (!newUsername) {
+    showAdminCredentialsMessage('Enter a username for the administrator account.', true);
+    return;
+  }
+
+  if ((newPassword && !confirmPassword) || (!newPassword && confirmPassword)) {
+    showAdminCredentialsMessage('Enter the new password in both password fields.', true);
+    return;
+  }
+
+  if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+    showAdminCredentialsMessage('The new passwords do not match.', true);
+    return;
+  }
+
+  setAdminCredentialsFormDisabled(true);
+  showAdminCredentialsMessage('Updating administrator credentials...');
+
+  try {
+    const currentPasswordHash = await hashPassword(currentPassword);
+    if (!adminCredentials || currentPasswordHash !== adminCredentials.passwordHash) {
+      showAdminCredentialsMessage('The current password is incorrect.', true);
+      return;
+    }
+
+    const updatedCredentials = {
+      username: newUsername,
+      passwordHash: adminCredentials.passwordHash
+    };
+
+    if (newPassword) {
+      updatedCredentials.passwordHash = await hashPassword(newPassword);
+    }
+
+    if (
+      updatedCredentials.username === adminCredentials.username &&
+      updatedCredentials.passwordHash === adminCredentials.passwordHash
+    ) {
+      showAdminCredentialsMessage('No changes detected. Update the username or enter a new password.');
+      return;
+    }
+
+    await persistAdminCredentials(updatedCredentials);
+
+    showAdminCredentialsMessage(
+      'Administrator credentials updated. Use the new details the next time you sign in.'
+    );
+
+    if (adminCredentialsInputs.currentPassword) {
+      adminCredentialsInputs.currentPassword.value = '';
+    }
+    if (adminCredentialsInputs.newPassword) {
+      adminCredentialsInputs.newPassword.value = '';
+    }
+    if (adminCredentialsInputs.confirmPassword) {
+      adminCredentialsInputs.confirmPassword.value = '';
+    }
+    if (adminCredentialsInputs.newUsername) {
+      adminCredentialsInputs.newUsername.value = updatedCredentials.username;
+      adminCredentialsInputs.newUsername.defaultValue = updatedCredentials.username;
+    }
+  } catch (error) {
+    console.error('Unable to update administrator credentials.', error);
+    const message =
+      error && error.message
+        ? error.message
+        : 'Unable to update administrator credentials. Please try again.';
+    showAdminCredentialsMessage(message, true);
+  } finally {
+    setAdminCredentialsFormDisabled(false);
+  }
 }
 
 function isAdminAuthenticated() {
@@ -1395,6 +1643,63 @@ function loadCurrentPortalConfig() {
       currentPortalConfig.roles[role] = [];
     }
   });
+}
+
+async function persistAdminCredentials(updatedCredentials) {
+  if (!updatedCredentials || typeof updatedCredentials !== 'object') {
+    throw new Error('Invalid administrator credentials.');
+  }
+
+  const { username, passwordHash } = updatedCredentials;
+
+  if (typeof username !== 'string' || !username.trim()) {
+    throw new Error('Invalid administrator username.');
+  }
+
+  if (typeof passwordHash !== 'string' || !passwordHash) {
+    throw new Error('Invalid administrator password.');
+  }
+
+  if (!loadedConfigSnapshot || typeof loadedConfigSnapshot !== 'object') {
+    throw new Error('Configuration data is not available yet.');
+  }
+
+  const previousConfigSnapshotString =
+    loadedConfigSnapshot && typeof loadedConfigSnapshot === 'object'
+      ? JSON.stringify(loadedConfigSnapshot)
+      : null;
+
+  const baseConfig = deepClone(loadedConfigSnapshot);
+  baseConfig.admin = { username: username.trim(), passwordHash };
+
+  const serverSaveResult = await persistConfigJsonOnServer(baseConfig);
+  if (!serverSaveResult.success) {
+    throw new Error(
+      serverSaveResult.error || 'Unable to persist administrator credentials to config.json.'
+    );
+  }
+
+  const syncSucceeded = await sendConfigUpdateToServiceWorker(baseConfig);
+  if (!syncSucceeded) {
+    if (previousConfigSnapshotString) {
+      persistConfigJsonOnServer(previousConfigSnapshotString).catch((error) => {
+        console.error(
+          'Failed to restore previous config.json after administrator credential sync error.',
+          error
+        );
+      });
+    }
+
+    throw new Error('Unable to synchronise administrator credentials across the application.');
+  }
+
+  loadedConfigSnapshot = deepClone(baseConfig);
+  adminCredentials = {
+    username: baseConfig.admin.username,
+    passwordHash: baseConfig.admin.passwordHash
+  };
+
+  return true;
 }
 
 async function persistPortalConfig() {
@@ -2564,6 +2869,7 @@ async function handleLogin(event) {
 
 function enterConsole() {
   loadCurrentPortalConfig();
+  renderAdminAccountSettings();
   renderBranding();
   renderRoles();
   showConsoleMessage('Signed in as portal administrator.');
