@@ -84,7 +84,10 @@ public class SavePortalConfigHandler : IHttpHandler
         context.Response.Write("{\"success\":true}");
     }
 
-    public bool IsReusable => false;
+    public bool IsReusable
+    {
+        get { return false; }
+    }
 
     private static bool IsSupportedMethod(string method)
     {
