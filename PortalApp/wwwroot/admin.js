@@ -10,32 +10,6 @@ const ROLE_LABELS = {
   staff: 'Staff'
 };
 
-let lastKnownConfigSavePath = '';
-
-function updateLastKnownConfigSavePath(path) {
-  if (typeof path !== 'string') {
-    lastKnownConfigSavePath = '';
-    refreshConfigSaveLocationStatus();
-    return;
-  }
-
-  const trimmed = path.trim();
-  lastKnownConfigSavePath = trimmed;
-  refreshConfigSaveLocationStatus();
-}
-
-function withConfigSaveLocationMessage(message) {
-  if (typeof message !== 'string' || !message) {
-    return message;
-  }
-
-  if (!lastKnownConfigSavePath) {
-    return message;
-  }
-
-  return `${message} Saved to ${lastKnownConfigSavePath}.`;
-}
-
 function registerServiceWorker() {
   if (!('serviceWorker' in navigator)) {
     return;
