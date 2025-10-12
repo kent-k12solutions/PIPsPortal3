@@ -173,7 +173,9 @@ async function handleConfigRequest(request) {
 
   try {
     const networkResponse = await fetch(request, { cache: 'no-store' });
-    await cache.put(CONFIG_PATH, networkResponse.clone());
+    if (cached) {
+      await cache.delete(CONFIG_PATH);
+    }
     return networkResponse;
   } catch (error) {
     if (cached) {
