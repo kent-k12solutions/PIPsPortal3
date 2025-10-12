@@ -15,11 +15,13 @@ let lastKnownConfigSavePath = '';
 function updateLastKnownConfigSavePath(path) {
   if (typeof path !== 'string') {
     lastKnownConfigSavePath = '';
+    refreshConfigSaveLocationStatus();
     return;
   }
 
   const trimmed = path.trim();
   lastKnownConfigSavePath = trimmed;
+  refreshConfigSaveLocationStatus();
 }
 
 function withConfigSaveLocationMessage(message) {
@@ -833,6 +835,7 @@ const loginForm = document.getElementById('admin-login-form');
 const loginStatus = document.getElementById('admin-login-status');
 const consoleSection = document.getElementById('admin-console');
 const consoleStatus = document.getElementById('admin-console-status');
+const configSaveLocationStatus = document.getElementById('config-save-location');
 const logoutButton = document.getElementById('admin-logout');
 const adminAccountSettingsContainer = document.getElementById('admin-account-settings');
 const brandingContainer = document.getElementById('branding-container');
@@ -845,6 +848,8 @@ const adminPortalTaglineElement = document.getElementById('admin-portal-tagline'
 const adminFooterElement = document.getElementById('admin-site-footer');
 const adminPrivacyPolicyLinkElement = document.getElementById('admin-privacy-policy-link');
 const adminCopyrightElement = document.getElementById('admin-copyright');
+
+refreshConfigSaveLocationStatus();
 
 const initialAdminPortalName = adminPortalNameElement ? adminPortalNameElement.textContent : '';
 const initialAdminPortalTagline = adminPortalTaglineElement ? adminPortalTaglineElement.textContent : '';
@@ -1298,6 +1303,20 @@ function showConsoleMessage(message, isError = false) {
   }
   consoleStatus.textContent = message;
   consoleStatus.style.color = isError ? '#dc2626' : '';
+}
+
+function refreshConfigSaveLocationStatus() {
+  if (!configSaveLocationStatus) {
+    return;
+  }
+
+  if (lastKnownConfigSavePath) {
+    configSaveLocationStatus.textContent = `Configuration saved to ${lastKnownConfigSavePath}`;
+    configSaveLocationStatus.classList.remove('hidden');
+  } else {
+    configSaveLocationStatus.textContent = '';
+    configSaveLocationStatus.classList.add('hidden');
+  }
 }
 
 function showAdminCredentialsMessage(message, isError = false) {

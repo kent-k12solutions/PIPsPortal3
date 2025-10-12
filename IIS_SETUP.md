@@ -26,6 +26,7 @@ Follow the steps below when hosting the portal on IIS:
    - Browse to `https://your-site/save-config.ashx` with a GET request; it should return **405 Method Not Allowed** (confirming the handler is active).
    - Use the admin portal to save a change. `config.json` should update immediately on disk.
    - Every successful save response now includes an `X-Portal-Config-Path` header that reveals the exact file system path IIS used. Inspect this header in the browser developer tools (or with `curl -i`) to verify that IIS is targeting the expected folder.
+   - The admin console also surfaces this value beneath the status banner after each successful save, making it easy to confirm where `config.json` was written without leaving the UI.
 
 6. **Optional hardening**
    - Restrict access to `save-config.ashx` with IIS IP restrictions or Windows authentication if the admin portal is not otherwise secured.
