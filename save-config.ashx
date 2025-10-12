@@ -13,6 +13,8 @@ public class SavePortalConfigHandler : IHttpHandler
 
     public void ProcessRequest(HttpContext context)
     {
+        context.Response.TrySkipIisCustomErrors = true;
+
         if (!IsSupportedMethod(context.Request.HttpMethod))
         {
             context.Response.StatusCode = 405;
@@ -81,6 +83,7 @@ public class SavePortalConfigHandler : IHttpHandler
         context.Response.ContentType = "application/json";
         context.Response.Cache.SetCacheability(HttpCacheability.NoCache);
         context.Response.Cache.SetNoStore();
+        context.Response.AppendHeader("X-Portal-Config-Path", configPath ?? string.Empty);
         context.Response.Write("{\"success\":true}");
     }
 
@@ -97,6 +100,7 @@ public class SavePortalConfigHandler : IHttpHandler
 
     private static void WriteError(HttpContext context, int statusCode, string message)
     {
+        context.Response.TrySkipIisCustomErrors = true;
         context.Response.StatusCode = statusCode;
         context.Response.ContentType = "application/json";
         context.Response.Cache.SetCacheability(HttpCacheability.NoCache);
