@@ -423,11 +423,19 @@ a {
   opacity: clamp(0, calc(var(--link-card-background-opacity, 1) + 0.08), 1);
 }
 
-.link-card img {
+.link-card__icon {
   width: 54px;
   height: 54px;
   object-fit: contain;
   filter: var(--link-card-icon-filter);
+}
+
+.link-card__image {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(var(--color-text-rgb), 0.08);
 }
 
 .link-card h3 {
@@ -517,6 +525,16 @@ a {
   margin-bottom: 2rem;
 }
 
+.admin-access {
+  margin-bottom: 2rem;
+}
+
+.admin-access__actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
 .admin-status {
   margin-top: 1rem;
   font-size: 0.95rem;
@@ -531,6 +549,78 @@ a {
 
 .branding-panel {
   margin-bottom: 2rem;
+}
+
+.admin-console-layout {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+}
+
+.admin-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 220px;
+}
+
+.admin-menu__item {
+  appearance: none;
+  border: 1px solid rgba(var(--color-text-rgb), 0.12);
+  background: rgba(var(--color-text-rgb), 0.02);
+  color: inherit;
+  padding: 0.65rem 1rem;
+  border-radius: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-menu__item:hover {
+  background: rgba(var(--color-primary-rgb), 0.08);
+  border-color: rgba(var(--color-primary-rgb), 0.32);
+  color: var(--color-primary);
+}
+
+.admin-menu__item--active {
+  background: rgba(var(--color-primary-rgb), 0.18);
+  border-color: rgba(var(--color-primary-rgb), 0.45);
+  color: var(--color-primary);
+  box-shadow: 0 6px 18px rgba(var(--color-primary-rgb), 0.18);
+}
+
+.admin-panels {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.admin-console-panel.hidden {
+  display: none !important;
+}
+
+@media (max-width: 960px) {
+  .admin-console-layout {
+    flex-direction: column;
+  }
+
+  .admin-menu {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .admin-menu__item {
+    flex: 1 1 140px;
+    text-align: center;
+  }
+
+  .admin-access__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .branding-card {

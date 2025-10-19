@@ -7,10 +7,6 @@
     "postLogoutRedirectUri": "https://portal.parentidpassport.com/index.html",
     "scopes": ["openid", "offline_access"]
   },
-  "admin": {
-    "username": "portal-admin",
-    "passwordHash": "a677b4f6b31234a53a763422edd36f47e4517f188eb2cd3c0eb7c108da5faf20"
-  },
   "portal": {
     "branding": {
       "title": "PIPs Portal",
@@ -51,7 +47,9 @@
       }
     },
     "authentication": {
-      "autoRedirectToSaml": true
+      "autoRedirectToLogin": true,
+      "roleClaim": "extension_role",
+      "adminRole": "admin"
     },
     "roles": {
       "anonymous": [

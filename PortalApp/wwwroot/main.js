@@ -317,6 +317,7 @@ const emptyStateElement = document.getElementById('links-empty');
 const portalCustomFooter = document.getElementById('portal-custom-footer');
 const privacyPolicyLinkElement = document.getElementById('privacy-policy-link');
 const portalCopyrightElement = document.getElementById('portal-copyright');
+const portalAdminLink = document.getElementById('portal-admin-link');
 
 const initialPortalTitle = portalTitleElement ? portalTitleElement.textContent : 'PIPS Unified Portal';
 const initialPortalTagline = portalTaglineElement
@@ -466,6 +467,7 @@ function normaliseLinkConfig(link = {}) {
       title: '',
       url: '',
       icon: '',
+      image: '',
       target: '_blank'
     };
   }
@@ -474,6 +476,7 @@ function normaliseLinkConfig(link = {}) {
     title: typeof link.title === 'string' ? link.title.trim() : '',
     url: typeof link.url === 'string' ? link.url.trim() : '',
     icon: typeof link.icon === 'string' ? link.icon.trim() : '',
+    image: typeof link.image === 'string' ? link.image.trim() : '',
     target: link.target === '_self' ? '_self' : '_blank'
   };
 
@@ -612,12 +615,13 @@ let msalInstance;
 let loginRequest = {};
 let logoutRedirectUri = null;
 let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
+let portalAuthenticationSettings = { autoRedirectToLogin: false, roleClaim: '', adminRole: '' };
 let accountDetailsEnabled = true;
 
 const urlParams = new URLSearchParams(window.location.search);
 const samlAuthParam = urlParams.get('samlAuth');
 const bypassSamlAuth = samlAuthParam === '0';
-let autoRedirectToSamlEnabled = false;
+let autoRedirectToLoginEnabled = false;
 let autoRedirectAttempted = false;
 
 function ensureSamlAuthDisabled(url) {
@@ -912,27 +916,42 @@ function setStatus(message) {
 }
 
 function getRolesFromClaims(claims) {
-  if (!claims) {
+  if (!claims || typeof claims !== 'object') {
     return [];
   }
 
   const claimKeys = Object.keys(claims);
-  const candidateKeys = ['roles', 'role', 'extension_roles', 'extension_role'];
+  const lowerKeyMap = new Map(claimKeys.map((key) => [key.toLowerCase(), key]));
+  const resolvedKeys = [];
 
-  for (const candidate of candidateKeys) {
-    const match = claimKeys.find((key) => key.toLowerCase() === candidate);
-    if (!match) {
-      continue;
+  if (portalAuthenticationSettings && typeof portalAuthenticationSettings.roleClaim === 'string') {
+    const configuredKey = portalAuthenticationSettings.roleClaim.trim().toLowerCase();
+    if (configuredKey) {
+      const actualKey = lowerKeyMap.get(configuredKey);
+      if (actualKey) {
+        resolvedKeys.push(actualKey);
+      }
     }
+  }
 
-    const value = claims[match];
+  ['roles', 'role', 'extension_roles', 'extension_role'].forEach((candidate) => {
+    const actualKey = lowerKeyMap.get(candidate);
+    if (actualKey && !resolvedKeys.includes(actualKey)) {
+      resolvedKeys.push(actualKey);
+    }
+  });
+
+  for (const key of resolvedKeys) {
+    const value = claims[key];
     if (Array.isArray(value)) {
       return value.map((item) => String(item));
     }
 
     if (typeof value === 'string' && value) {
-      return value.split(',').map((item) => item.trim()).filter(Boolean);
-
+      return value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
     }
   }
 
@@ -946,6 +965,57 @@ function formatRoles(claims) {
 
 function normalizeRoleValue(value) {
   return value.trim().toLowerCase();
+}
+
+function getConfiguredAdminRoles() {
+  const adminSetting = portalAuthenticationSettings && portalAuthenticationSettings.adminRole;
+  if (!adminSetting) {
+    return [];
+  }
+
+  if (Array.isArray(adminSetting)) {
+    return adminSetting.map((value) => normalizeRoleValue(String(value))).filter(Boolean);
+  }
+
+  if (typeof adminSetting !== 'string') {
+    return [];
+  }
+
+  return adminSetting
+    .split(',')
+    .map((value) => normalizeRoleValue(value))
+    .filter(Boolean);
+}
+
+function doesAccountHaveAdminRole(account) {
+  if (!account) {
+    return false;
+  }
+
+  const claims = account.idTokenClaims || {};
+  const roles = getRolesFromClaims(claims).map((role) => normalizeRoleValue(role));
+  if (roles.length === 0) {
+    return false;
+  }
+
+  const adminRoles = getConfiguredAdminRoles();
+  if (adminRoles.length === 0) {
+    return false;
+  }
+
+  return roles.some((role) => adminRoles.includes(role));
+}
+
+function updateAdminLinkVisibility(account) {
+  if (!portalAdminLink) {
+    return;
+  }
+
+  if (account && doesAccountHaveAdminRole(account)) {
+    portalAdminLink.classList.remove('hidden');
+  } else {
+    portalAdminLink.classList.add('hidden');
+  }
 }
 
 function findPortalRoleMatch(claims) {
@@ -1001,8 +1071,23 @@ function getStoredPortalConfig() {
         ? parsed.authentication
         : {};
     const authentication = {};
-    if (typeof authenticationSource.autoRedirectToSaml === 'boolean') {
-      authentication.autoRedirectToSaml = authenticationSource.autoRedirectToSaml;
+    if (typeof authenticationSource.autoRedirectToLogin === 'boolean') {
+      authentication.autoRedirectToLogin = authenticationSource.autoRedirectToLogin;
+    } else if (typeof authenticationSource.autoRedirectToSaml === 'boolean') {
+      authentication.autoRedirectToLogin = authenticationSource.autoRedirectToSaml;
+    }
+
+    if (typeof authenticationSource.roleClaim === 'string') {
+      authentication.roleClaim = authenticationSource.roleClaim.trim();
+    }
+
+    if (typeof authenticationSource.adminRole === 'string') {
+      authentication.adminRole = authenticationSource.adminRole.trim();
+    } else if (Array.isArray(authenticationSource.adminRole)) {
+      authentication.adminRole = authenticationSource.adminRole
+        .map((role) => (typeof role === 'string' ? role.trim() : ''))
+        .filter(Boolean)
+        .join(',');
     }
 
     return { branding, roles, authentication };
@@ -1080,21 +1165,43 @@ function getPortalAuthenticationSettings() {
       ? stored.authentication
       : {};
 
-  const defaultAutoRedirect =
-    typeof defaultAuthentication.autoRedirectToSaml === 'boolean'
-      ? defaultAuthentication.autoRedirectToSaml
-      : false;
+  const resolved = {
+    autoRedirectToLogin:
+      typeof defaultAuthentication.autoRedirectToLogin === 'boolean'
+        ? defaultAuthentication.autoRedirectToLogin
+        : typeof defaultAuthentication.autoRedirectToSaml === 'boolean'
+          ? defaultAuthentication.autoRedirectToSaml
+          : false,
+    roleClaim:
+      typeof defaultAuthentication.roleClaim === 'string'
+        ? defaultAuthentication.roleClaim.trim()
+        : '',
+    adminRole:
+      typeof defaultAuthentication.adminRole === 'string'
+        ? defaultAuthentication.adminRole.trim()
+        : ''
+  };
 
-  if (typeof storedAuthentication.autoRedirectToSaml === 'boolean') {
-    return { autoRedirectToSaml: storedAuthentication.autoRedirectToSaml };
+  if (typeof storedAuthentication.autoRedirectToLogin === 'boolean') {
+    resolved.autoRedirectToLogin = storedAuthentication.autoRedirectToLogin;
+  } else if (typeof storedAuthentication.autoRedirectToSaml === 'boolean') {
+    resolved.autoRedirectToLogin = storedAuthentication.autoRedirectToSaml;
   }
 
-  return { autoRedirectToSaml: defaultAutoRedirect };
+  if (typeof storedAuthentication.roleClaim === 'string' && storedAuthentication.roleClaim.trim()) {
+    resolved.roleClaim = storedAuthentication.roleClaim.trim();
+  }
+
+  if (typeof storedAuthentication.adminRole === 'string' && storedAuthentication.adminRole.trim()) {
+    resolved.adminRole = storedAuthentication.adminRole.trim();
+  }
+
+  return resolved;
 }
 
-function refreshAutoRedirectSetting() {
-  const authentication = getPortalAuthenticationSettings();
-  autoRedirectToSamlEnabled = Boolean(authentication.autoRedirectToSaml);
+function refreshAuthenticationSettings() {
+  portalAuthenticationSettings = getPortalAuthenticationSettings();
+  autoRedirectToLoginEnabled = Boolean(portalAuthenticationSettings.autoRedirectToLogin);
 }
 
 function applyBranding() {
@@ -1222,12 +1329,14 @@ function renderPortal(roleKey) {
     card.rel = card.target === '_blank' ? 'noopener noreferrer' : '';
     card.role = 'listitem';
 
-    if (link.icon) {
-      const icon = document.createElement('img');
-      icon.src = link.icon;
-      icon.alt = `${link.title} icon`;
-      icon.loading = 'lazy';
-      card.appendChild(icon);
+    const visualSource = link.image || link.icon;
+    if (visualSource) {
+      const visual = document.createElement('img');
+      visual.src = visualSource;
+      visual.alt = link.image ? `${link.title} image` : `${link.title} icon`;
+      visual.loading = 'lazy';
+      visual.className = link.image ? 'link-card__image' : 'link-card__icon';
+      card.appendChild(visual);
     }
 
     const title = document.createElement('h3');
@@ -1287,6 +1396,8 @@ function showAccountInfo(account) {
     }
     logoutButton.disabled = false;
   }
+
+  updateAdminLinkVisibility(account || null);
 
   const roleKey = determinePortalRole(account);
   renderPortal(roleKey);
@@ -1375,7 +1486,7 @@ function maybeTriggerAutoRedirect(account) {
     return;
   }
 
-  if (!autoRedirectToSamlEnabled) {
+  if (!autoRedirectToLoginEnabled) {
     return;
   }
 
@@ -1463,10 +1574,25 @@ fetch(portalConfigUrl, { cache: 'no-store' })
         ? config.portal.authentication
         : {};
     const defaultAuthentication = {
-      autoRedirectToSaml:
-        typeof portalAuthentication.autoRedirectToSaml === 'boolean'
-          ? portalAuthentication.autoRedirectToSaml
-          : false
+      autoRedirectToLogin:
+        typeof portalAuthentication.autoRedirectToLogin === 'boolean'
+          ? portalAuthentication.autoRedirectToLogin
+          : typeof portalAuthentication.autoRedirectToSaml === 'boolean'
+            ? portalAuthentication.autoRedirectToSaml
+            : false,
+      roleClaim:
+        typeof portalAuthentication.roleClaim === 'string'
+          ? portalAuthentication.roleClaim.trim()
+          : '',
+      adminRole:
+        typeof portalAuthentication.adminRole === 'string'
+          ? portalAuthentication.adminRole.trim()
+          : Array.isArray(portalAuthentication.adminRole)
+            ? portalAuthentication.adminRole
+                .map((role) => (typeof role === 'string' ? role.trim() : ''))
+                .filter(Boolean)
+                .join(',')
+            : ''
     };
 
     defaultPortalConfig = {
@@ -1474,7 +1600,7 @@ fetch(portalConfigUrl, { cache: 'no-store' })
       roles: (config.portal && config.portal.roles) || {},
       authentication: defaultAuthentication
     };
-    refreshAutoRedirectSetting();
+    refreshAuthenticationSettings();
     applyBranding();
     renderPortal('anonymous');
     initializeMsal(config.azure);
@@ -1488,7 +1614,7 @@ fetch(portalConfigUrl, { cache: 'no-store' })
 window.addEventListener('storage', (event) => {
   if (event.key === PORTAL_LINKS_STORAGE_KEY) {
     applyBranding();
-    refreshAutoRedirectSetting();
+    refreshAuthenticationSettings();
     const account = msalInstance ? msalInstance.getActiveAccount() : null;
     showAccountInfo(account || null);
   }
