@@ -3,8 +3,8 @@
     "clientId": "fab20c6a-ba3b-416c-9058-3c9cdf8303e9",
     "authority": "https://id.k12college.parentidpassport.com/pipsk12college.onmicrosoft.com/B2C_1A_PIPS_PORTAL_SIGNIN_PROD",
     "knownAuthorities": ["id.k12college.parentidpassport.com"],
-    "redirectUri": "http://localhost:5500/index.html",
-    "postLogoutRedirectUri": "https://localhost:5500/index.html",
+    "redirectUri": "https://portal.parentidpassport.com/index.html",
+    "postLogoutRedirectUri": "https://portal.parentidpassport.com/index.html",
     "scopes": ["openid", "offline_access"]
   },
   "admin": {
