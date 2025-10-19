@@ -58,7 +58,7 @@
         {
           "title": "Contact Us",
           "url": "https://www.parentidpassport.com/contact-us/",
-          "icon": "icons/paper-plane.png",
+          "icon": "icons/paper-plane.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -68,7 +68,7 @@
         {
           "title": "Parent ID Passport",
           "url": "https://www.parentidpassport.com/",
-          "icon": "icons/home.png",
+          "icon": "icons/home.svg",
           "target": "_self",
           "backgroundColor": "",
           "textColor": "",
@@ -80,7 +80,7 @@
         {
           "title": "Parent Lounge",
           "url": "https://k12apidev.tassweb.com.au/parentlounge",
-          "icon": "icons/users-alt.png",
+          "icon": "icons/users-alt.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -90,7 +90,7 @@
         {
           "title": "My School Connect",
           "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
-          "icon": "icons/home.png",
+          "icon": "icons/home.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -100,7 +100,7 @@
         {
           "title": "My School Connect",
           "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
-          "icon": "icons/paper-plane.png",
+          "icon": "icons/paper-plane.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -110,7 +110,7 @@
         {
           "title": "My School Connect",
           "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
-          "icon": "icons/home.png",
+          "icon": "icons/home.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -120,7 +120,7 @@
         {
           "title": "My School Connect",
           "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
-          "icon": "icons/book-bookmark.png",
+          "icon": "icons/book-bookmark.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -130,7 +130,7 @@
         {
           "title": "My School Connect",
           "url": "https://demo.myschoolconnect.com.au/index.php?route=account/saml&identity_provider=pipk12-sp",
-          "icon": "icons/home.png",
+          "icon": "icons/home.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
@@ -142,7 +142,7 @@
         {
           "title": "Class Schedule",
           "url": "https://www.example.com/schedule",
-          "icon": "icons/home.png",
+          "icon": "icons/home.svg",
           "target": "_self",
           "backgroundColor": "",
           "textColor": "",
@@ -164,7 +164,7 @@
         {
           "title": "HR Portal",
           "url": "https://www.example.com/hr",
-          "icon": "icons/users-alt.png",
+          "icon": "icons/users-alt.svg",
           "target": "_blank",
           "backgroundColor": "",
           "textColor": "",
