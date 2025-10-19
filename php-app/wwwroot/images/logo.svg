@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="ParentIDPassport logo">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#6366f1" />
+    </linearGradient>
+  </defs>
+  <rect width="120" height="120" rx="24" fill="url(#g)" />
+  <path d="M38 80c0-12 10-22 22-22s22 10 22 22" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="60" cy="42" r="16" fill="#ffffff" />
+  <path d="M24 36h72v16H24z" fill="#c7d2fe" opacity="0.6" />
+  <path d="M24 68h72v16H24z" fill="#c7d2fe" opacity="0.2" />
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="portal-icon-gradient" x1="12%" y1="8%" x2="88%" y2="92%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="50%" stop-color="#8b5cf6" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <filter id="portal-icon-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#1f2937" flood-opacity="0.2" />
+    </filter>
+  </defs>
+  <rect x="16" y="16" width="160" height="160" rx="36" fill="url(#portal-icon-gradient)" filter="url(#portal-icon-shadow)" />
+  <path fill="#fff" d="M96 48c-12.7 0-23 10.3-23 23v13.8c0 4.8-3.9 8.7-8.7 8.7H54c-7.7 0-14 6.3-14 14v36.5C40 151.7 48.3 160 58.8 160h74.4c10.5 0 18.8-8.3 18.8-18.8V107c0-7.7-6.3-14-14-14h-10.3c-4.8 0-8.7-3.9-8.7-8.7V71c0-12.7-10.3-23-23-23Zm0 20c1.7 0 3 1.3 3 3v16.8c0 7.5 6.1 13.7 13.7 13.7h10.3c1.7 0 3 1.3 3 3v34.2a6 6 0 0 1-6 6H58.8a6 6 0 0 1-6-6V104c0-1.7 1.3-3 3-3h10.3c7.5 0 13.7-6.1 13.7-13.7V71c0-1.7 1.3-3 3-3Z"/>
+</svg>

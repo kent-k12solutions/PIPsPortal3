@@ -1977,7 +1977,7 @@ function renderBranding() {
   const logoInput = document.createElement('input');
   logoInput.type = 'url';
   logoInput.name = 'logo';
-  logoInput.placeholder = 'https://cdn.example.com/crest.png';
+  logoInput.placeholder = 'https://cdn.example.com/crest.svg';
   logoInput.value = branding.logo || '';
   logoLabel.appendChild(logoInput);
 
