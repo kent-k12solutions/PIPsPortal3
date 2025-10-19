@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-const CONFIG_PATH = __DIR__ . '/wwwroot/config.json';
-const STATIC_ROOT = __DIR__ . '/wwwroot';
+const CONFIG_PATH = __DIR__ . '/config.json';
+const STATIC_ROOT = __DIR__;
 
 $staticRootReal = realpath(STATIC_ROOT) ?: STATIC_ROOT;
 

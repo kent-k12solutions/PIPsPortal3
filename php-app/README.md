@@ -1,19 +1,38 @@
 # ParentIDPassport PHP Portal
 
-This directory contains a minimal PHP web host that serves the ParentIDPassport single-page portal and administration console. The runtime delivers static assets from `wwwroot/` and exposes a hardened JSON endpoint for persisting portal configuration to `wwwroot/config.json`.
+This directory contains a minimal PHP web host that serves the ParentIDPassport single-page portal and administration console. The runtime is designed to run directly from your web server's document root (for example `public_html/`) and exposes a hardened JSON endpoint for persisting portal configuration to `config.json` in that directory.
 
 ## Running locally
 
 ```bash
-cd php-app
+cd php-app/public_html
 php -S localhost:8000 index.php
 ```
 
-The built-in PHP server will serve assets from `wwwroot/` and handle `POST /save-config.ashx` requests from the administrator console.
+The built-in PHP server will serve assets from the current directory and handle `POST /save-config.ashx` requests from the administrator console.
 
 Open `http://localhost:8000/index.html` to view the public portal or `http://localhost:8000/admin.html` for the console.
 
-> **Note** Ensure the process has write access to `wwwroot/config.json` so that configuration updates from the administrator console can be saved.
+> **Note** Ensure the process has write access to `config.json` so that configuration updates from the administrator console can be saved.
+
+## Deploying to shared hosting
+
+Upload the contents of the `public_html/` directory directly into the document root supplied by your provider (commonly also named `public_html/`). The structure should resemble:
+
+```
+public_html/
+├── admin.html
+├── config.json
+├── images/
+├── index.html
+├── index.php
+├── manifest.json
+├── scripts/
+├── service-worker.js
+└── styles.css
+```
+
+With this layout `index.php` sits alongside the rest of the portal assets, allowing the application to run without any custom rewrite rules.
 
 ## Administrator bootstrap credentials
 
