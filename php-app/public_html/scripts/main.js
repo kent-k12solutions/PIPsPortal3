@@ -83,6 +83,7 @@ setupRoleSelector();
 setupStorageListener();
 
 const msalScriptSources = [
+
   'scripts/msal-browser-2.38.4.min.js',
   'https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js',
   'https://alcdn.msftauth.net/browser/2.38.4/js/msal-browser.min.js',
