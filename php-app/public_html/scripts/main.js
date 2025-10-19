@@ -83,7 +83,8 @@ setupRoleSelector();
 setupStorageListener();
 
 const msalScriptSources = [
-  'scripts/vendor/msal-browser-2.38.4.min.js',
+
+  'scripts/msal-browser-2.38.4.min.js',
   'https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js',
   'https://alcdn.msftauth.net/browser/2.38.4/js/msal-browser.min.js',
   'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.4/lib/msal-browser.min.js'
