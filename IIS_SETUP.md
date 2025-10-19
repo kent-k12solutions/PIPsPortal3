@@ -12,6 +12,8 @@ Follow the steps below to deploy the application on IIS:
    - On your build machine, execute `dotnet publish PortalApp/PortalApp.csproj -c Release -o publish`.
    - Copy the contents of the generated `publish` folder to your IIS site directory (for example, `C:\inetpub\wwwroot\PIPsPortal`).
 
+   > **Azure AD B2C reminder**: Update `wwwroot/config.json` so the `redirectUri` and `postLogoutRedirectUri` entries point to the public portal domain (e.g. `https://portal.parentidpassport.com/index.html`) before publishing. This ensures sign-in callbacks work after deploying to production.
+
 3. **Create the IIS site or application**
    - Point the IIS site/application to the publish folder.
    - Use the **No Managed Code** application pool (ASP.NET Core runs out-of-process behind the ASP.NET Core Module).
