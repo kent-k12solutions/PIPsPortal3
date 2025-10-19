@@ -166,13 +166,60 @@ function mergeWithOverrides(config) {
   if (!stored) {
     return config;
   }
-  return clone({ ...config, ...stored, links: mergeLinks(config.links, stored.links) });
+
+  const mergedBranding = mergeObjects(config.branding, stored.branding);
+  const mergedAuthentication = mergeObjects(config.authentication, stored.authentication);
+  const mergedAzure = mergeAzureConfig(config.azureB2C, stored.azureB2C);
+  const mergedLinks = mergeLinks(config.links, stored.links);
+
+  return clone({
+    ...config,
+    ...stored,
+    branding: mergedBranding,
+    authentication: mergedAuthentication,
+    azureB2C: mergedAzure,
+    links: mergedLinks
+  });
 }
 
 function mergeLinks(base = {}, overrides = {}) {
   const merged = { ...base };
   for (const role of Object.keys(overrides || {})) {
     merged[role] = overrides[role];
+  }
+  return merged;
+}
+
+function mergeObjects(base = {}, overrides = {}) {
+  if (!overrides) {
+    return base;
+  }
+
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (typeof value === 'undefined') {
+      continue;
+    }
+    merged[key] = value;
+  }
+  return merged;
+}
+
+function mergeAzureConfig(base = {}, overrides = {}) {
+  if (!overrides) {
+    return base;
+  }
+
+  const merged = { ...base };
+  for (const [key, value] of Object.entries(overrides)) {
+    if (typeof value === 'undefined' || value === null) {
+      continue;
+    }
+    if (Array.isArray(value)) {
+      merged[key] = [...value];
+    } else {
+      merged[key] = value;
+    }
   }
   return merged;
 }
