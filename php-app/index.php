@@ -19,6 +19,10 @@ $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($requestUri, PHP_URL_PATH) ?: '/';
 
+if ($path === '/index.php') {
+    $path = '/';
+}
+
 if ($path === '/save-config.ashx') {
     handle_save_request($method);
     exit;
