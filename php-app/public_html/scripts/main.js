@@ -50,7 +50,9 @@ const state = {
   overrides: null,
   account: null,
   msalApp: null,
-  swRegistration: null
+  swRegistration: null,
+  msalLoadPromise: null,
+  authHandlersBound: false
 };
 
 const overrideKey = 'parentIdPassport.overrideConfig';
@@ -80,6 +82,12 @@ loadPortalConfig();
 setupRoleSelector();
 setupStorageListener();
 
+const msalScriptSources = [
+  'https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js',
+  'https://alcdn.msftauth.net/browser/2.38.4/js/msal-browser.min.js',
+  'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.4/lib/msal-browser.min.js'
+];
+
 async function loadPortalConfig() {
   try {
     const response = await fetch(`./config.json?cacheBust=${Date.now()}`);
@@ -89,7 +97,7 @@ async function loadPortalConfig() {
     state.config = mergeWithOverrides(payload);
     applyBranding(state.config.branding);
     renderLinks(elements.roleSelector.value);
-    initialiseMsal(state.config.azureB2C);
+    await initialiseMsal(state.config.azureB2C);
     maybeAutoRedirect();
   } catch (error) {
     console.error('Unable to load configuration', error);
@@ -98,8 +106,56 @@ async function loadPortalConfig() {
     state.config = mergeWithOverrides(defaultPortalConfig);
     applyBranding(state.config.branding);
     renderLinks(elements.roleSelector.value);
+    await initialiseMsal(state.config.azureB2C);
     maybeAutoRedirect();
   }
+}
+
+async function ensureMsalLoaded() {
+  if (window.msal) {
+    return true;
+  }
+
+  if (!state.msalLoadPromise) {
+    state.msalLoadPromise = loadMsalSequentially();
+  }
+
+  try {
+    await state.msalLoadPromise;
+  } catch (error) {
+    console.error('Unable to load MSAL library', error);
+    state.msalLoadPromise = null;
+    announce('Authentication is temporarily unavailable. Please try again later.');
+  }
+
+  return typeof window.msal !== 'undefined';
+}
+
+async function loadMsalSequentially() {
+  for (const source of msalScriptSources) {
+    try {
+      await injectScript(source);
+      if (window.msal) {
+        return;
+      }
+    } catch (error) {
+      console.warn(`Failed to load MSAL from ${source}`, error);
+    }
+  }
+
+  throw new Error('All MSAL sources failed');
+}
+
+function injectScript(src) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+    document.head.appendChild(script);
+  });
 }
 
 function mergeWithOverrides(config) {
@@ -218,8 +274,9 @@ function describeRole(role) {
   }
 }
 
-function initialiseMsal(azureConfig) {
-  if (!window.msal || !azureConfig?.clientId) {
+async function initialiseMsal(azureConfig) {
+  const msalAvailable = await ensureMsalLoaded();
+  if (!msalAvailable || !azureConfig?.clientId) {
     console.warn('MSAL library not available or misconfigured');
     updateAccountDisplay();
     return;
@@ -254,17 +311,22 @@ function initialiseMsal(azureConfig) {
     announce('Authentication error. Check Azure AD B2C configuration.');
   });
 
-  elements.signin.addEventListener('click', () => {
-    state.msalApp.loginRedirect({
-      scopes: azureConfig.scopes || [],
-      redirectStartPage: window.location.href
+  if (!state.authHandlersBound) {
+    elements.signin.addEventListener('click', () => {
+      const currentConfig = state.config.azureB2C || azureConfig;
+      state.msalApp.loginRedirect({
+        scopes: currentConfig?.scopes || [],
+        redirectStartPage: window.location.href
+      });
     });
-  });
 
-  elements.signout.addEventListener('click', () => {
-    const account = state.msalApp.getActiveAccount();
-    state.msalApp.logoutRedirect({ account });
-  });
+    elements.signout.addEventListener('click', () => {
+      const account = state.msalApp.getActiveAccount();
+      state.msalApp.logoutRedirect({ account });
+    });
+
+    state.authHandlersBound = true;
+  }
 
   const account = state.msalApp.getActiveAccount();
   if (account) {
