@@ -24,7 +24,9 @@
             <p id="admin-header-description" class="intro">
               Configure the <span id="admin-portal-name">PIPs Portal</span> experience for every role.
             </p>
-            <p id="admin-portal-tagline" class="intro admin-portal-tagline">Sign in with your parent account to unlock your portal.</p>
+            <p id="admin-portal-tagline" class="intro admin-portal-tagline">
+              Use your administrator credentials to configure the portal experience.
+            </p>
           </div>
         </div>
         <div class="session-controls">
@@ -38,11 +40,33 @@
         <p class="admin-description">Manage the resources that appear on the ParentIDPassport portal for each role.</p>
         <section id="admin-access-gate" class="admin-access" aria-live="polite">
           <p class="admin-description">
-            Sign in with your Azure AD B2C administrator account to manage the ParentIDPassport portal experience.
+            Enter the administrator username and password to manage the ParentIDPassport portal experience.
           </p>
-          <div class="admin-access__actions">
-            <button id="admin-signin-btn" class="primary-button">Sign in</button>
-          </div>
+          <form id="admin-login-form" class="admin-form admin-login-form" novalidate>
+            <label for="admin-username">
+              Administrator username
+              <input
+                id="admin-username"
+                name="adminUsername"
+                type="text"
+                autocomplete="username"
+                required
+              />
+            </label>
+            <label for="admin-password">
+              Administrator password
+              <input
+                id="admin-password"
+                name="adminPassword"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </label>
+            <div class="admin-access__actions">
+              <button id="admin-signin-btn" class="primary-button" type="submit">Sign in</button>
+            </div>
+          </form>
           <p id="admin-access-status" class="admin-status"></p>
         </section>
         <section id="admin-console" class="hidden" aria-live="polite">
@@ -81,7 +105,6 @@
       </div>
     </footer>
   </div>
-  <script src="lib/msal-browser-2.38.4.min.js"></script>
   <script src="admin.js"></script>
 </body>
 </html>

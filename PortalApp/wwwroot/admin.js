@@ -830,6 +830,9 @@ function updateLinkOpacityDisplay(slider) {
 const accessGateSection = document.getElementById('admin-access-gate');
 const accessStatus = document.getElementById('admin-access-status');
 const signInButton = document.getElementById('admin-signin-btn');
+const adminLoginForm = document.getElementById('admin-login-form');
+const adminUsernameInput = document.getElementById('admin-username');
+const adminPasswordInput = document.getElementById('admin-password');
 const consoleSection = document.getElementById('admin-console');
 const consoleStatus = document.getElementById('admin-console-status');
 const configSaveLocationStatus = document.getElementById('config-save-location');
@@ -855,16 +858,57 @@ const initialAdminPortalTagline = adminPortalTaglineElement ? adminPortalTagline
 let defaultPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let currentPortalConfig = { branding: {}, roles: {}, authentication: {} };
 let loadedConfigSnapshot = null;
-let msalInstance = null;
-let adminLoginRequest = {};
-let adminLogoutRedirectUri = null;
-let azureB2CConfig = null;
 let activeAdminAccount = null;
 let adminMenuInitialised = false;
-let autoLoginAttempted = false;
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function normaliseAdminCredentials(credentials) {
+  if (!credentials || typeof credentials !== 'object') {
+    return { username: '', password: '' };
+  }
+
+  const username =
+    typeof credentials.username === 'string' ? credentials.username.trim() : '';
+  const password =
+    typeof credentials.password === 'string' ? credentials.password : '';
+
+  return { username, password };
+}
+
+function areAdminCredentialsConfigured(credentials) {
+  return Boolean(credentials && credentials.username && credentials.password);
+}
+
+function createAdminCredentialFingerprint(credentials) {
+  const normalised = normaliseAdminCredentials(credentials);
+  return `${normalised.username.toLowerCase()}::${normalised.password}`;
+}
+
+function doCredentialsMatchInput(username, password, configuredCredentials) {
+  const normalisedConfigured = normaliseAdminCredentials(configuredCredentials);
+  if (!areAdminCredentialsConfigured(normalisedConfigured)) {
+    return false;
+  }
+
+  const providedUsername = typeof username === 'string' ? username.trim() : '';
+  const providedPassword = typeof password === 'string' ? password : '';
+
+  return (
+    providedUsername.toLowerCase() === normalisedConfigured.username.toLowerCase() &&
+    providedPassword === normalisedConfigured.password
+  );
+}
+
+function getConfiguredAdminCredentials() {
+  const settings = getAuthenticationSettings();
+  if (!settings || typeof settings !== 'object') {
+    return { username: '', password: '' };
+  }
+
+  return normaliseAdminCredentials(settings.adminCredentials);
 }
 
 function applyColorVariablesToDocument(colors = {}) {
@@ -1248,8 +1292,6 @@ async function loadConfiguration() {
   const config = await response.json();
   loadedConfigSnapshot = deepClone(config);
 
-  azureB2CConfig = config.azure && typeof config.azure === 'object' ? config.azure : null;
-
   const portalBranding = (config.portal && config.portal.branding) || {};
   const brandingClone = deepClone(portalBranding || {});
   const brandingColors =
@@ -1290,6 +1332,9 @@ async function loadConfiguration() {
               .join(',')
           : ''
   };
+
+  const defaultAdminCredentials = normaliseAdminCredentials(portalAuthentication.adminCredentials);
+  defaultAuthentication.adminCredentials = defaultAdminCredentials;
 
   defaultPortalConfig = {
     branding: brandingClone,
@@ -1398,7 +1443,18 @@ function showAccessGate() {
 }
 
 function enterConsole(account) {
-  activeAdminAccount = account || null;
+  const configuredCredentials = getConfiguredAdminCredentials();
+  const fingerprint =
+    account && account.fingerprint
+      ? account.fingerprint
+      : createAdminCredentialFingerprint(configuredCredentials);
+  const username =
+    account && account.username ? account.username : configuredCredentials.username || 'administrator';
+
+  activeAdminAccount = {
+    username,
+    fingerprint
+  };
   loadCurrentPortalConfig();
   refreshAdminPreview();
   renderBranding();
@@ -1419,132 +1475,116 @@ function enterConsole(account) {
   }
   setSignOutButtonDisabled(false);
 
-  const displayName = account && (account.name || account.username) ? account.name || account.username : 'administrator';
+  const displayName = activeAdminAccount.username || 'administrator';
   showConsoleMessage(`Signed in as ${displayName}.`);
   showAccessMessage('');
+  if (adminPasswordInput) {
+    adminPasswordInput.value = '';
+  }
 }
 
-function leaveConsole(message = '') {
+function leaveConsole(message = '', isError = false) {
   activeAdminAccount = null;
-  autoLoginAttempted = false;
   showAccessGate();
   if (signInButton) {
     signInButton.classList.remove('hidden');
   }
   showConsoleMessage('');
+  if (adminPasswordInput) {
+    adminPasswordInput.value = '';
+  }
   if (message) {
-    showAccessMessage(message, true);
+    showAccessMessage(message, isError);
   } else {
-    showAccessMessage('Sign in with an administrator account to manage the portal.');
+    refreshAccessGateMessage();
   }
 }
 
-function handleAccountChange(account) {
-  if (account && accountHasAdminAccess(account)) {
-    enterConsole(account);
-  } else if (account) {
-    leaveConsole('You are signed in, but your account does not have administrator permissions for this portal.');
-  } else {
-    leaveConsole();
-    maybeStartAutoLogin(null);
+function refreshAccessGateMessage() {
+  const credentials = getConfiguredAdminCredentials();
+  if (!areAdminCredentialsConfigured(credentials)) {
+    showAccessMessage(
+      'Administrator credentials are not configured. Update the authentication settings to set a username and password.',
+      true
+    );
+    setSignInButtonDisabled(true);
+    return;
+  }
+
+  showAccessMessage('Enter the administrator username and password to manage the portal.');
+  setSignInButtonDisabled(false);
+}
+
+function ensureActiveAdminSessionIsValid() {
+  if (!activeAdminAccount) {
+    return;
+  }
+
+  const credentials = getConfiguredAdminCredentials();
+  if (!areAdminCredentialsConfigured(credentials)) {
+    leaveConsole('Administrator credentials are not configured. Update the settings and sign in again.', true);
+    return;
+  }
+
+  const fingerprint = createAdminCredentialFingerprint(credentials);
+  if (activeAdminAccount.fingerprint !== fingerprint) {
+    leaveConsole('Administrator credentials have changed. Please sign in again.', true);
   }
 }
 
-function maybeStartAutoLogin(account) {
-  if (!msalInstance || autoLoginAttempted || account) {
+function attemptAdminLogin() {
+  const credentials = getConfiguredAdminCredentials();
+
+  if (!areAdminCredentialsConfigured(credentials)) {
+    showAccessMessage(
+      'Administrator credentials are not configured. Update the authentication settings to set a username and password.',
+      true
+    );
+    setSignInButtonDisabled(true);
     return;
   }
 
-  const settings = getAuthenticationSettings();
-  if (!settings.autoRedirectToLogin) {
-    return;
-  }
-
-  autoLoginAttempted = true;
   setSignInButtonDisabled(true);
-  showAccessMessage('Redirecting to sign-in…');
 
-  msalInstance.loginRedirect(adminLoginRequest).catch((error) => {
-    console.error('Automatic admin sign-in failed.', error);
+  const username = adminUsernameInput ? adminUsernameInput.value : '';
+  const password = adminPasswordInput ? adminPasswordInput.value : '';
+
+  if (!username || !username.trim() || !password) {
+    showAccessMessage('Enter both the administrator username and password to continue.', true);
     setSignInButtonDisabled(false);
-    showAccessMessage('Unable to start automatic sign-in. Use the sign-in button to continue.', true);
-  });
+    return;
+  }
+
+  if (!doCredentialsMatchInput(username, password, credentials)) {
+    showAccessMessage('Invalid administrator username or password. Try again.', true);
+    if (adminPasswordInput) {
+      adminPasswordInput.value = '';
+      adminPasswordInput.focus();
+    }
+    setSignInButtonDisabled(false);
+    return;
+  }
+
+  const account = {
+    username: credentials.username,
+    fingerprint: createAdminCredentialFingerprint(credentials)
+  };
+
+  enterConsole(account);
+  if (adminLoginForm) {
+    adminLoginForm.reset();
+  }
+  setSignInButtonDisabled(false);
 }
 
-function initializeAuthentication() {
-  showAccessGate();
-  setSignInButtonDisabled(true);
-  showAccessMessage('Sign in with an administrator account to manage the portal.');
-
-  if (!azureB2CConfig) {
-    showAccessMessage('Azure AD B2C configuration is missing. Update config.json and try again.', true);
-    return;
-  }
-
-  adminLoginRequest = { scopes: Array.isArray(azureB2CConfig.scopes) ? azureB2CConfig.scopes : [] };
-  adminLogoutRedirectUri =
-    typeof azureB2CConfig.postLogoutRedirectUri === 'string' && azureB2CConfig.postLogoutRedirectUri
-      ? azureB2CConfig.postLogoutRedirectUri
-      : typeof azureB2CConfig.redirectUri === 'string' && azureB2CConfig.redirectUri
-        ? azureB2CConfig.redirectUri
-        : window.location.href;
-
-  try {
-    msalInstance = new msal.PublicClientApplication({
-      auth: {
-        clientId: azureB2CConfig.clientId,
-        authority: azureB2CConfig.authority,
-        knownAuthorities: azureB2CConfig.knownAuthorities,
-        redirectUri: azureB2CConfig.redirectUri,
-        postLogoutRedirectUri: adminLogoutRedirectUri
-      },
-      cache: {
-        cacheLocation: 'localStorage',
-        storeAuthStateInCookie: false
-      }
-    });
-  } catch (error) {
-    console.error('Failed to initialize MSAL for the admin console.', error);
-    showAccessMessage('Unable to initialize the sign-in experience. Check the console for details.', true);
-    return;
-  }
-
-  msalInstance
-    .handleRedirectPromise()
-    .then((response) => {
-      if (response && response.account) {
-        msalInstance.setActiveAccount(response.account);
-        handleAccountChange(response.account);
-        setSignInButtonDisabled(false);
-        return;
-      }
-
-      const activeAccount = msalInstance.getActiveAccount();
-      if (activeAccount) {
-        handleAccountChange(activeAccount);
-        setSignInButtonDisabled(false);
-        return;
-      }
-
-      const accounts = msalInstance.getAllAccounts();
-      if (accounts.length > 0) {
-        msalInstance.setActiveAccount(accounts[0]);
-        handleAccountChange(accounts[0]);
-      } else {
-        handleAccountChange(null);
-      }
-
-      setSignInButtonDisabled(false);
-    })
-    .catch((error) => {
-      console.error('Admin authentication error', error);
-      showAccessMessage('Unable to complete sign-in. Check the console for details.', true);
-      setSignInButtonDisabled(false);
-      handleAccountChange(null);
-    });
+function handleAdminSignOut() {
+  leaveConsole('You have signed out.');
+  showConsoleMessage('You have signed out.');
 }
 
 async function initializeAdmin() {
+  showAccessGate();
+  setSignInButtonDisabled(true);
   showAccessMessage('Loading configuration…');
 
   try {
@@ -1557,48 +1597,29 @@ async function initializeAdmin() {
 
   loadCurrentPortalConfig();
   refreshAdminPreview();
-  initializeAuthentication();
+  refreshAccessGateMessage();
 }
 
-if (signInButton) {
-  signInButton.addEventListener('click', () => {
-    if (!msalInstance) {
-      console.error('MSAL is not initialized yet.');
-      showAccessMessage('The sign-in service is not ready. Refresh the page and try again.', true);
-      return;
-    }
-
-    setSignInButtonDisabled(true);
-    showAccessMessage('Redirecting to sign-in…');
-    msalInstance.loginRedirect(adminLoginRequest).catch((error) => {
-      console.error('Admin sign-in failed.', error);
-      setSignInButtonDisabled(false);
-      showAccessMessage('Unable to start sign-in. Check the console for details.', true);
-    });
+if (adminLoginForm) {
+  adminLoginForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    attemptAdminLogin();
   });
 }
 
 if (signOutButton) {
   signOutButton.addEventListener('click', () => {
-    if (!msalInstance) {
-      console.error('MSAL is not initialized yet.');
-      return;
-    }
-
-    setSignOutButtonDisabled(true);
-    showConsoleMessage('Signing out…');
-    msalInstance
-      .logoutRedirect({ postLogoutRedirectUri: adminLogoutRedirectUri })
-      .catch((error) => {
-        console.error('Admin sign-out failed.', error);
-        setSignOutButtonDisabled(false);
-        showConsoleMessage('Unable to sign out. Check the console for details.', true);
-      });
+    handleAdminSignOut();
   });
 }
 
 window.addEventListener('storage', (event) => {
-  if (event.key === PORTAL_LINKS_STORAGE_KEY && activeAdminAccount && accountHasAdminAccess(activeAdminAccount)) {
+  if (event.key === PORTAL_LINKS_STORAGE_KEY && activeAdminAccount) {
+    ensureActiveAdminSessionIsValid();
+    if (!activeAdminAccount) {
+      return;
+    }
+
     loadCurrentPortalConfig();
     renderBranding();
     renderAuthenticationSettings();
@@ -1660,6 +1681,14 @@ function getStoredPortalConfig() {
         .map((role) => (typeof role === 'string' ? role.trim() : ''))
         .filter(Boolean)
         .join(',');
+    }
+
+    if (
+      authenticationSource &&
+      typeof authenticationSource.adminCredentials === 'object' &&
+      authenticationSource.adminCredentials !== null
+    ) {
+      authentication.adminCredentials = normaliseAdminCredentials(authenticationSource.adminCredentials);
     }
 
     return { branding, roles, authentication };
@@ -1772,6 +1801,18 @@ function loadCurrentPortalConfig() {
     adminRole: storedAdminRole || defaultAdminRole
   };
 
+  const hasStoredCredentials =
+    storedAuthentication && Object.prototype.hasOwnProperty.call(storedAuthentication, 'adminCredentials');
+  if (hasStoredCredentials) {
+    currentPortalConfig.authentication.adminCredentials = normaliseAdminCredentials(
+      storedAuthentication.adminCredentials
+    );
+  } else if (Object.prototype.hasOwnProperty.call(defaultAuthentication, 'adminCredentials')) {
+    currentPortalConfig.authentication.adminCredentials = normaliseAdminCredentials(
+      defaultAuthentication.adminCredentials
+    );
+  }
+
   if (!currentPortalConfig.roles || typeof currentPortalConfig.roles !== 'object') {
     currentPortalConfig.roles = {};
   }
@@ -1828,86 +1869,25 @@ function getAuthenticationSettings() {
           : ''
   };
 
+  const hasCurrentCredentials = Object.prototype.hasOwnProperty.call(
+    currentAuthentication,
+    'adminCredentials'
+  );
+  const hasDefaultCredentials = Object.prototype.hasOwnProperty.call(
+    defaultAuthentication,
+    'adminCredentials'
+  );
+
+  if (hasCurrentCredentials || hasDefaultCredentials) {
+    const source = hasCurrentCredentials
+      ? currentAuthentication.adminCredentials
+      : defaultAuthentication.adminCredentials;
+    resolved.adminCredentials = normaliseAdminCredentials(source);
+  } else {
+    resolved.adminCredentials = { username: '', password: '' };
+  }
+
   return resolved;
-}
-
-function normalizeRoleValue(value) {
-  return typeof value === 'string' ? value.trim().toLowerCase() : String(value || '').trim().toLowerCase();
-}
-
-function extractRolesFromClaims(claims, roleClaimKey) {
-  if (!claims || typeof claims !== 'object') {
-    return [];
-  }
-
-  const claimKeys = Object.keys(claims);
-  const lowerKeyMap = new Map(claimKeys.map((key) => [key.toLowerCase(), key]));
-  const resolvedKeys = [];
-
-  if (roleClaimKey) {
-    const configuredKey = roleClaimKey.trim().toLowerCase();
-    if (configuredKey) {
-      const actualKey = lowerKeyMap.get(configuredKey);
-      if (actualKey) {
-        resolvedKeys.push(actualKey);
-      }
-    }
-  }
-
-  ['roles', 'role', 'extension_roles', 'extension_role'].forEach((candidate) => {
-    const actualKey = lowerKeyMap.get(candidate);
-    if (actualKey && !resolvedKeys.includes(actualKey)) {
-      resolvedKeys.push(actualKey);
-    }
-  });
-
-  for (const key of resolvedKeys) {
-    const value = claims[key];
-    if (Array.isArray(value)) {
-      return value.map((item) => String(item));
-    }
-
-    if (typeof value === 'string' && value) {
-      return value
-        .split(',')
-        .map((item) => item.trim())
-        .filter(Boolean);
-    }
-  }
-
-  return [];
-}
-
-function getAdminRoleList() {
-  const settings = getAuthenticationSettings();
-  if (!settings.adminRole) {
-    return [];
-  }
-
-  return settings.adminRole
-    .split(',')
-    .map((value) => normalizeRoleValue(value))
-    .filter(Boolean);
-}
-
-function accountHasAdminAccess(account) {
-  if (!account) {
-    return false;
-  }
-
-  const claims = account.idTokenClaims || {};
-  const settings = getAuthenticationSettings();
-  const roles = extractRolesFromClaims(claims, settings.roleClaim).map((role) => normalizeRoleValue(role));
-  if (roles.length === 0) {
-    return false;
-  }
-
-  const adminRoles = getAdminRoleList();
-  if (adminRoles.length === 0) {
-    return false;
-  }
-
-  return roles.some((role) => adminRoles.includes(role));
 }
 
 async function persistPortalConfig() {
@@ -1967,6 +1947,12 @@ async function persistPortalConfig() {
 
   if (typeof authenticationSource.adminRole === 'string' && authenticationSource.adminRole.trim()) {
     authenticationPayload.adminRole = authenticationSource.adminRole.trim();
+  }
+
+  if (Object.prototype.hasOwnProperty.call(authenticationSource, 'adminCredentials')) {
+    authenticationPayload.adminCredentials = normaliseAdminCredentials(
+      authenticationSource.adminCredentials
+    );
   }
 
   const payload = {
@@ -2575,10 +2561,11 @@ function renderAuthenticationSettings() {
   const description = document.createElement('p');
   description.className = 'branding-description';
   description.textContent =
-    'Control how visitors authenticate with Azure AD B2C and how portal roles are mapped from token claims.';
+    'Configure how visitors sign in, map roles from their identity token, and manage the administrator credentials for this console.';
   section.appendChild(description);
 
   const settings = getAuthenticationSettings();
+  const adminCredentials = settings.adminCredentials || { username: '', password: '' };
 
   const form = document.createElement('form');
   form.className = 'admin-form authentication-form';
@@ -2591,14 +2578,14 @@ function renderAuthenticationSettings() {
   autoRedirectInput.value = '1';
   autoRedirectInput.checked = Boolean(settings.autoRedirectToLogin);
   const autoRedirectText = document.createElement('span');
-  autoRedirectText.textContent = 'Automatically redirect guests to Azure AD B2C sign-in';
+  autoRedirectText.textContent = 'Automatically redirect guests to the sign-in page';
   autoRedirectLabel.appendChild(autoRedirectInput);
   autoRedirectLabel.appendChild(autoRedirectText);
 
   const autoRedirectHint = document.createElement('p');
   autoRedirectHint.className = 'branding-hint';
   autoRedirectHint.textContent =
-    'When enabled, visitors are sent directly to the Azure AD B2C user flow when they load the public portal.';
+    'When enabled, visitors are sent directly to the configured login experience when they load the public portal.';
 
   const roleClaimLabel = document.createElement('label');
   roleClaimLabel.textContent = 'Role claim name';
@@ -2626,7 +2613,7 @@ function renderAuthenticationSettings() {
   const adminRolesHint = document.createElement('p');
   adminRolesHint.className = 'branding-hint';
   adminRolesHint.textContent =
-    'Comma-separated list of role values that can access the administration console. Matching is case-insensitive.';
+    'Comma-separated list of token role values that grant administrator access to the portal. Matching is case-insensitive.';
 
   form.appendChild(autoRedirectLabel);
   form.appendChild(autoRedirectHint);
@@ -2634,6 +2621,36 @@ function renderAuthenticationSettings() {
   form.appendChild(roleClaimHint);
   form.appendChild(adminRolesLabel);
   form.appendChild(adminRolesHint);
+
+  const adminUsernameLabel = document.createElement('label');
+  adminUsernameLabel.textContent = 'Administrator username';
+  const adminUsernameInputField = document.createElement('input');
+  adminUsernameInputField.type = 'text';
+  adminUsernameInputField.name = 'adminUsername';
+  adminUsernameInputField.placeholder = 'e.g. admin';
+  adminUsernameInputField.autocomplete = 'username';
+  adminUsernameInputField.value = adminCredentials.username || '';
+  adminUsernameLabel.appendChild(adminUsernameInputField);
+
+  const adminPasswordLabel = document.createElement('label');
+  adminPasswordLabel.textContent = 'Administrator password';
+  const adminPasswordInputField = document.createElement('input');
+  adminPasswordInputField.type = 'password';
+  adminPasswordInputField.name = 'adminPassword';
+  adminPasswordInputField.autocomplete = adminCredentials.password ? 'new-password' : 'current-password';
+  if (adminCredentials.password) {
+    adminPasswordInputField.placeholder = 'Leave blank to keep existing password';
+  }
+  adminPasswordLabel.appendChild(adminPasswordInputField);
+
+  const adminPasswordHint = document.createElement('p');
+  adminPasswordHint.className = 'branding-hint';
+  adminPasswordHint.textContent =
+    'These credentials protect the admin console and are stored in config.json. Update them regularly and publish the changes.';
+
+  form.appendChild(adminUsernameLabel);
+  form.appendChild(adminPasswordLabel);
+  form.appendChild(adminPasswordHint);
 
   const actions = document.createElement('div');
   actions.className = 'admin-actions';
@@ -2659,7 +2676,12 @@ function renderAuthenticationSettings() {
       await persistPortalConfig();
       renderAuthenticationSettings();
       showConsoleMessage(withConfigSaveLocationMessage('Authentication settings restored to defaults.'));
-      handleAccountChange(activeAdminAccount);
+      ensureActiveAdminSessionIsValid();
+      if (!activeAdminAccount) {
+        refreshAccessGateMessage();
+      } else {
+        showAccessMessage('');
+      }
     } catch (error) {
       console.error('Unable to restore default authentication settings.', error);
       loadCurrentPortalConfig();
@@ -2687,6 +2709,8 @@ async function handleAuthenticationSubmit(form) {
   const autoRedirectToLogin = formData.has('autoRedirectToLogin');
   const roleClaimValue = formData.get('roleClaim');
   const adminRolesValue = formData.get('adminRoles');
+  const adminUsernameValue = formData.get('adminUsername');
+  const adminPasswordValue = formData.get('adminPassword');
 
   const roleClaim = typeof roleClaimValue === 'string' ? roleClaimValue.trim() : '';
   const adminRoles = typeof adminRolesValue === 'string'
@@ -2697,28 +2721,65 @@ async function handleAuthenticationSubmit(form) {
         .join(',')
     : '';
 
-  currentPortalConfig.authentication = {
-    ...currentPortalConfig.authentication,
-    autoRedirectToLogin
-  };
+  const adminUsername = typeof adminUsernameValue === 'string' ? adminUsernameValue.trim() : '';
+  const providedPassword = typeof adminPasswordValue === 'string' ? adminPasswordValue : '';
+
+  const existingAuthentication =
+    currentPortalConfig.authentication && typeof currentPortalConfig.authentication === 'object'
+      ? { ...currentPortalConfig.authentication }
+      : {};
+  const existingCredentials = normaliseAdminCredentials(existingAuthentication.adminCredentials);
+
+  const authenticationConfig = { ...existingAuthentication, autoRedirectToLogin };
 
   if (roleClaim) {
-    currentPortalConfig.authentication.roleClaim = roleClaim;
+    authenticationConfig.roleClaim = roleClaim;
   } else {
-    delete currentPortalConfig.authentication.roleClaim;
+    delete authenticationConfig.roleClaim;
   }
 
   if (adminRoles) {
-    currentPortalConfig.authentication.adminRole = adminRoles;
+    authenticationConfig.adminRole = adminRoles;
   } else {
-    delete currentPortalConfig.authentication.adminRole;
+    delete authenticationConfig.adminRole;
   }
+
+  let passwordToStore = '';
+  if (adminUsername) {
+    passwordToStore = providedPassword ? providedPassword : existingCredentials.password || '';
+  } else {
+    passwordToStore = providedPassword ? providedPassword : '';
+  }
+
+  if (adminUsername) {
+    if (!passwordToStore) {
+      showConsoleMessage('Administrator password is required when a username is provided.', true);
+      return;
+    }
+
+    authenticationConfig.adminCredentials = {
+      username: adminUsername,
+      password: passwordToStore
+    };
+  } else if (passwordToStore) {
+    showConsoleMessage('Administrator username is required when setting a password.', true);
+    return;
+  } else {
+    delete authenticationConfig.adminCredentials;
+  }
+
+  currentPortalConfig.authentication = authenticationConfig;
 
   try {
     await persistPortalConfig();
     renderAuthenticationSettings();
     showConsoleMessage(withConfigSaveLocationMessage('Authentication settings updated.'));
-    handleAccountChange(activeAdminAccount);
+    ensureActiveAdminSessionIsValid();
+    if (!activeAdminAccount) {
+      refreshAccessGateMessage();
+    } else {
+      showAccessMessage('');
+    }
   } catch (error) {
     console.error('Unable to save authentication settings.', error);
     loadCurrentPortalConfig();
